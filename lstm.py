@@ -4,24 +4,27 @@ from torch import nn
 # Need these for BMI
 import time
 import data_tools
-import configparser
+#import configparser
 import numpy as np
 import pandas as pd
 import pickle
+from pathlib import Path
+
+from neuralhydrology.utils.config import Config
 
 class bmi_LSTM(nn.Module):
-    #--------------------------------------------------------------------------------------------------
-    # This is the LSTM model. Based on the simple "CudaLSTM" in NeuralHydrolog
-    # Onlt meant for forward predictions, this is not for training. Do training in NeuralHydrology
-    #--------------------------------------------------------------------------------------------------
-    def __init__(self, input_size=11, hidden_layer_size=64, output_size=1, batch_size=1, seq_length=1):
+
+    def __init__(self):
         super(bmi_LSTM, self).__init__()
-        self.input_size = input_size
-        self.hidden_layer_size = hidden_layer_size
-        self.seq_length = seq_length
-        self.batch_size = batch_size # We shouldn't neeed to do a higher batch size.
-        self.lstm = nn.LSTM(input_size, hidden_layer_size)
-        self.head = nn.Linear(hidden_layer_size, output_size)
+        print('thank you for choosing LSTM')
+
+    #--------------------------------------------------------------------------------------------------
+    # This is the LSTM model. Based on the simple "CudaLSTM" in NeuralHydrology
+    # Only meant for forward predictions, this is not for training. Do training in NeuralHydrology
+    #--------------------------------------------------------------------------------------------------
+    def initialize_lstm(self):
+        self.lstm = nn.LSTM(self.input_size, self.hidden_layer_size)
+        self.head = nn.Linear(self.hidden_layer_size, self.output_size)
         self._values = {}
 
     def forward(self, input_layer, h_t, c_t):
@@ -67,16 +70,12 @@ class bmi_LSTM(nn.Module):
     #------------------------------------------------------
     # Create a Python dictionary that maps CSDMS Standard
     # Names to the model's internal variable names.
+    # This is going to get long, 
+    #     since the input variable names could come from any forcing...
     #------------------------------------------------------
     _var_name_map = { 
-         'land_surface_radiation~incoming~longwave__energy_flux':'LWDOWN',
-         'land_surface_air__pressure':'PSFC',
-         'atmosphere_air_water~vapor__relative_saturation':'Q2D',
-         'atmosphere_water__liquid_equivalent_precipitation_rate':'RAINRATE',
-         'land_surface_radiation~incoming~shortwave__energy_flux':'SWDOWN',
-         'land_surface_air__temperature':'T2D',
-         'land_surface_wind__x_component_of_velocity':'U2D',
-         'land_surface_wind__y_component_of_velocity':'V2D'}
+         'total_precipitation':'atmosphere_water__liquid_equivalent_precipitation_rate',
+         'temperature':'land_surface_air__temperature'}
 
     #------------------------------------------------------
     # Create a Python dictionary that maps CSDMS Standard
@@ -199,64 +198,88 @@ class bmi_LSTM(nn.Module):
     def get_time_units( self ):
 
         return self.get_attribute( 'time_units' ) 
-        
+       
+
+
+    #-------------------------------------------------------------------
+    def set_value(self, var_name, src):
+        """Set model values.
+
+        Parameters
+        ----------
+        var_name : str
+            Name of variable as CSDMS Standard Name.
+        src : array_like
+              Array of new values.
+        """ 
+        val = self.get_value_ptr(var_name)
+        val[:] = src
+ 
     #------------------------------------------------------------
     # BMI: Model Control Functions
     #------------------------------------------------------------ 
 
     #-------------------------------------------------------------------
-    def initialize( self, sfg_file=None ):
-
-        self.timer_start = time.time()
-
-        self.load_nldas_for_warmup()
-               
-        self.warmup_tensor = torch.tensor(self.nldas.values)
-
-        self.load_forcing()
-
-        self.input_tensor = torch.tensor(self.forcings.values)
-
-        self.load_observations()
-      
-        self.load_scalers()  
+    def initialize( self, bmi_cfg_file=None ):
         
-        p_dict = torch.load(self.trained_model_file, map_location=torch.device('cpu'))
-        m_dict = self.state_dict()
+        # First read in the BMI configuration. This will direct all the next moves.
+        if bmi_cfg_file is not None:
+            self.cfg_bmi = Config._read_and_parse_config(bmi_cfg_file)
+        else:
+            print("Error: No configuration provided, nothing to do...")
+    
+        # ----    print some stuff for troubleshooting    ---- #
+        if self.cfg_bmi['verbose'] > 1:
+            print("Initializing LSTM")
+
+        # Now load in the configuration file for the specific LSTM
+        # This will include all the details about how the model was trained
+        # Inputs, outputs, hyper-parameters, etc.
+        if self.cfg_bmi['train_cfg_file'] is not None:
+            self.cfg_train = Config._read_and_parse_config(self.cfg_bmi['train_cfg_file'])
+
+        # Collect the LSTM model architecture details from the configuration file
+        self.input_size        = len(self.cfg_train['dynamic_inputs']) + len(self.cfg_train['static_attributes'])
+        self.hidden_layer_size = self.cfg_train['hidden_size']
+        self.output_size       = len(self.cfg_train['target_variables']) 
+
+        # ----    print some stuff for troubleshooting    ---- #
+        if self.cfg_bmi['verbose'] >=5:
+            print('LSTM model architecture')
+            print('input size', type(self.input_size), self.input_size)
+            print('hidden layer size', type(self.hidden_layer_size), self.hidden_layer_size)
+            print('output size', type(self.output_size), self.output_size)
+        
+        # Now we need to initialize an LSTM model.
+        self.initialize_lstm()
+
+        # load in the model specific values (scalers, weights, etc.)
+
+        # Scaler data from the training set. This is used to normalize the data (input and output).
+        with open(self.cfg_train['run_dir'] / 'train_data' / 'train_data_scaler.p', 'rb') as fb:
+            self.train_data_scaler = pickle.load(fb)
+
+        # Save the default model weights. We need to make sure we have the same keys.
+        default_state_dict = self.state_dict()
+
+        # Trained model weights from Neuralhydrology.
+        trained_model_file = self.cfg_train['run_dir'] / 'model_epoch{}.pt'.format(str(self.cfg_train['epochs']).zfill(3))
+        trained_state_dict = torch.load(trained_model_file, map_location=torch.device('cpu'))
 
         # Changing the name of the head weights, since different in NH
-        p_dict['head.weight'] = p_dict.pop('head.net.0.weight')
-        p_dict['head.bias'] = p_dict.pop('head.net.0.bias')
+        trained_state_dict['head.weight'] = trained_state_dict.pop('head.net.0.weight')
+        trained_state_dict['head.bias'] = trained_state_dict.pop('head.net.0.bias')
+        trained_state_dict = {x:trained_state_dict[x] for x in default_state_dict.keys()}
 
-        lstm_weights = {x:p_dict[x] for x in m_dict.keys()}
-        self.load_state_dict(lstm_weights)
-        
-        self.obs_std = np.array(self.scalers['xarray_stds'].to_array())[-1]
-        self.obs_mean = np.array(self.scalers['xarray_means'].to_array())[-1]
-        xm = np.array(self.scalers['xarray_means'].to_array())[:-1]
-        xs = np.array(self.scalers['xarray_stds'].to_array())[:-1]
-        xm2 = np.array([xm[x] for x in list([3,2,5,0,4,1,6,7])]) # scalar means ordered to match forcing
-        xs2 = np.array([xs[x] for x in list([3,2,5,0,4,1,6,7])]) # scalar stds ordered to match forcing
-        att_means = np.append( np.array(self.scalers['attribute_means'].values)[0],np.array(self.scalers['attribute_means'].values)[1:3])
-        att_stds = np.append(np.array(self.scalers['attribute_stds'].values)[0], np.array(self.scalers['attribute_stds'].values)[1:3])
-        self.scaler_mean = np.append(xm2, att_means)
-        self.scaler_std = np.append(xs2, att_stds)
-        self.input_tensor = (self.input_tensor-self.scaler_mean)/self.scaler_std
-        self.warmup_tensor = (self.input_tensor-self.scaler_mean)/self.scaler_std
-        
-        self.warmup = np.maximum(self.seq_length, self.nwarm)
+        # Load in the trained weights.
+        self.load_state_dict(trained_state_dict)
 
-        self.output_list = []
-
-        self.streamflow = np.nan
-        self._values = {"land_surface_water__runoff_volume_flux": self.streamflow}
-
-        if self.is_do_warmup:
-            self.do_warmup()
-        
-        self.read_initial_states()
-
-        self.t = self.istart
+        # ----    print some stuff for troubleshooting    ---- #
+        if self.cfg_bmi['verbose'] >=5:
+            print('Training data scalers')
+            print(self.train_data_scaler)
+            print('pytorch_weights_dict')
+            print(pytorch_weights_dict)
 
     #------------------------------------------------------------ 
     def update(self):
@@ -280,59 +303,6 @@ class bmi_LSTM(nn.Module):
     def finalize( self ):
         return 0
 
-
-    #------------------------------------------------------------
-    # Non-BMI functions that are only used internally.
-    #------------------------------------------------------------
-    def read_cfg_file( self, cfg_file=None):
-        #--------------------------------------
-        # What if cfg_file doesn't exist ?
-        #--------------------------------------
-        if (cfg_file == None):
-            cfg_file = self.cfg_file
-        
-        try:
-#            lstm_cfg_file = open(cfg_file, 'r')
-            config = configparser.ConfigParser()
-            config.read(cfg_file)
-        except IOError as err:
-            errno, strerror = err.args
-            print('Could not find input file named:')
-            print(cfg_file)
-            # print "I/O error(%s): %s" % (errno, strerror)
-            print()
-            return
-
-        #----------------------------------------------
-        # Read values from cfg_file and store in "self"
-        #----------------------------------------------
-        self.seed                =  int(config.get('lstm-bmi','seed'))
-        self.dt                  = str(config.get('lstm-bmi', 'time_step'))
-        self.input_size          = int(config.get('lstm-bmi','input_size'))
-        self.hidden_layer_size   = int(config.get('lstm-bmi', 'hidden_layer_size'))
-        self.output_size         = int(config.get('lstm-bmi', 'output_size'))
-        self.seq_length          = int(config.get('lstm-bmi', 'seq_length'))
-        self.batch_size          = int(config.get('lstm-bmi', 'batch_size'))
-        self.hidden_layer_size   = int(config.get('lstm-bmi', 'hidden_layer_size'))
-        self.nwarm               = int(config.get('lstm-bmi', 'nwarm'))
-        self.istart              = int(config.get('lstm-bmi', 'istart'))
-        self.iend                = int(config.get('lstm-bmi', 'iend'))
-        self.is_do_warmup        = config.get('lstm-bmi', 'is_do_warmup')
-        self.test_date_start     = config.get('lstm-bmi', 'test_date_start')
-        self.test_date_end       = config.get('lstm-bmi', 'test_date_end')
-        self.data_dir            = config.get('lstm-bmi', 'data_dir')
-        self.area_sqkm           = float(config.get('lstm-bmi', 'area_sqkm'))
-        self.lat                 = float(config.get('lstm-bmi', 'lat'))
-        self.lon                 = float(config.get('lstm-bmi', 'lon'))
-        self.warmup_forcing_file = config.get('lstm-bmi', 'warmup_forcing_file')
-        self.forcing_file        = config.get('lstm-bmi', 'forcing_file')
-        self.trained_model_file  = config.get('lstm-bmi', 'trained_model_file')
-        self.scaler_file         = config.get('lstm-bmi', 'scaler_file')
-        self.observation_file    = config.get('lstm-bmi', 'observation_file')
-        self.observation_column  = config.get('lstm-bmi', 'observation_column')
-        self.h_t_init_file       = config.get('lstm-bmi', 'h_t_init_file')
-        self.c_t_init_file       = config.get('lstm-bmi', 'c_t_init_file')
-
     #-------------------------------------------------------------------
     def convert_precipitation_units(self, precip, conversion_factor):     
         return precip * conversion_factor
@@ -341,21 +311,21 @@ class bmi_LSTM(nn.Module):
     def do_warmup(self):
         self.h_t = torch.zeros(1, self.batch_size, self.hidden_layer_size).float()
         self.c_t = torch.zeros(1, self.batch_size, self.hidden_layer_size).float()
-#        for n_warmup_loops in range(10):
-#            #for t in range(self.seq_length, self.warmup_tensor.shape[0]):
-#            for t in range(self.seq_length+1, self.warmup_tensor.shape[0]):
-#                with torch.no_grad():
-#                    input_layer = self.warmup_tensor[t-self.seq_length:t, :]
-#                    output, self.h_t, self.c_t = self.forward(input_layer, self.h_t, self.c_t)
-#                    h_t = self.h_t.transpose(0,1)
-#                    c_t = self.c_t.transpose(0,1)
-#                    if t == self.warmup_tensor.shape[0] - 1:
-#                        h_t_np = h_t[0,0,:].numpy()
-#                        h_t_df = pd.DataFrame(h_t_np)
-#                        h_t_df.to_csv(self.h_t_init_file)
-#                        c_t_np = c_t[0,0,:].numpy()
-#                        c_t_df = pd.DataFrame(c_t_np)
-#                        c_t_df.to_csv(self.c_t_init_file)
+        for n_warmup_loops in range(10):
+            #for t in range(self.seq_length, self.warmup_tensor.shape[0]):
+            for t in range(self.seq_length+1, self.warmup_tensor.shape[0]):
+                with torch.no_grad():
+                    input_layer = self.warmup_tensor[t-self.seq_length:t, :]
+                    output, self.h_t, self.c_t = self.forward(input_layer, self.h_t, self.c_t)
+                    h_t = self.h_t.transpose(0,1)
+                    c_t = self.c_t.transpose(0,1)
+                    if t == self.warmup_tensor.shape[0] - 1:
+                        h_t_np = h_t[0,0,:].numpy()
+                        h_t_df = pd.DataFrame(h_t_np)
+                        h_t_df.to_csv(self.h_t_init_file)
+                        c_t_np = c_t[0,0,:].numpy()
+                        c_t_df = pd.DataFrame(c_t_np)
+                        c_t_df.to_csv(self.c_t_init_file)
         h_t = self.h_t.transpose(0,1)
         c_t = self.c_t.transpose(0,1)
         h_t_np = h_t[0,0,:].numpy()
@@ -382,7 +352,8 @@ class bmi_LSTM(nn.Module):
     def load_forcing(self):
         with open(self.forcing_file, 'r') as f:
             df = pd.read_csv(f)
-        df = df.rename(columns={'precip_rate':'RAINRATE', 'SPFH_2maboveground':'Q2D', 'TMP_2maboveground':'T2D', 
+ #       df = df.rename(columns={'precip_rate':'RAINRATE', 'SPFH_2maboveground':'Q2D', 'TMP_2maboveground':'T2D', 
+        df = df.rename(columns={'APCP_surface':'RAINRATE', 'SPFH_2maboveground':'Q2D', 'TMP_2maboveground':'T2D', 
                            'DLWRF_surface':'LWDOWN',  'DSWRF_surface':'SWDOWN',  'PRES_surface':'PSFC',
                            'UGRD_10maboveground':'U2D', 'VGRD_10maboveground':'V2D'})
 
@@ -391,7 +362,7 @@ class bmi_LSTM(nn.Module):
         df['lon'] = [self.lon for i in range(df.shape[0])]
         
         # The precipitation rate units for the training set were obviously different than these forcings. Guessing it is a m -> mm conversion.
-        df['RAINRATE'] = self.convert_precipitation_units(df['RAINRATE'], 1000)
+     #   df['RAINRATE'] = self.convert_precipitation_units(df['RAINRATE'], 1000)
 
         df = df.drop(['time'], axis=1) #cat-87.csv has no observation data
 
