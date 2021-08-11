@@ -1,0 +1,18 @@
+time_step: '1 hour'
+nwarm: 1772
+istart: 1772 
+iend: 2492
+is_do_warmup: True
+run_date_start: 2015-12-01
+run_date_end: 2015-12-30
+data_dir: ./data/
+area_sqkm: 14.8
+lat: 35.287
+lon: -80.85
+forcing_file: ./data/forcing-cat-87.txt
+h_t_init_file: ./data/h_t_start.csv
+c_t_init_file: ./data/c_t_start.csv
+train_cfg_file: '/glade/work/jframe/neuralhydrology/runs/hourly_test_run_1008_154114/config.yml'
+verbose: 1
+elev_mean: 760
+slope_mean: 46
