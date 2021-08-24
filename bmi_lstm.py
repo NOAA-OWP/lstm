@@ -93,18 +93,198 @@ class bmi_LSTM(Bmi):
          'land_surface_wind__x_component_of_velocity':'m s-1',
          'land_surface_wind__y_component_of_velocity':'m s-1'}
 
+
+    #------------------------------------------------------------
+    #------------------------------------------------------------
+    # BMI: Model Control Functions
+    #------------------------------------------------------------ 
+    #------------------------------------------------------------
+
+    #-------------------------------------------------------------------
+    def initialize( self, bmi_cfg_file=None ):
+        
+        # First read in the BMI configuration. This will direct all the next moves.
+        if bmi_cfg_file is not None:
+            self.cfg_bmi = Config._read_and_parse_config(bmi_cfg_file)
+        else:
+            print("Error: No configuration provided, nothing to do...")
+    
+        # ----    print some stuff for troubleshooting    ---- #
+        if self.cfg_bmi['verbose'] >= 1:
+            print("Initializing LSTM")
+
+        # Now load in the configuration file for the specific LSTM
+        # This will include all the details about how the model was trained
+        # Inputs, outputs, hyper-parameters, etc.
+        self.get_training_configurations()
+        
+        # Now we need to initialize an LSTM model.
+        self.lstm = nextgen_cuda_lstm.Nextgen_CudaLSTM(input_size=self.input_size, 
+                                                       hidden_layer_size=self.hidden_layer_size, 
+                                                       output_size=self.output_size, 
+                                                       batch_size=1, 
+                                                       seq_length=1)
+
+        # load in the model specific values (scalers, weights, etc.)
+
+        self.get_scaler_values()
+
+        # Save the default model weights. We need to make sure we have the same keys.
+        default_state_dict = self.lstm.state_dict()
+
+        # Trained model weights from Neuralhydrology.
+        trained_model_file = self.cfg_train['run_dir'] / 'model_epoch{}.pt'.format(str(self.cfg_train['epochs']).zfill(3))
+        trained_state_dict = torch.load(trained_model_file, map_location=torch.device('cpu'))
+
+        # Changing the name of the head weights, since different in NH
+        trained_state_dict['head.weight'] = trained_state_dict.pop('head.net.0.weight')
+        trained_state_dict['head.bias'] = trained_state_dict.pop('head.net.0.bias')
+        trained_state_dict = {x:trained_state_dict[x] for x in default_state_dict.keys()}
+
+        # Load in the trained weights.
+        self.lstm.load_state_dict(trained_state_dict)
+
+        # ----    Initialize the values for the input to the LSTM    ---- #
+        self.set_static_attributes()
+        self.initialize_forcings()
+        self.set_values()
+
+        self.t = 0
+        
+        if self.cfg_bmi['initial_state'] == 'zero':
+            self.h_t = torch.zeros(1, self.batch_size, self.hidden_layer_size).float()
+            self.c_t = torch.zeros(1, self.batch_size, self.hidden_layer_size).float()
+
+        self.output_factor =  self.cfg_bmi['area_sqkm'] * 35.315 # from m3/s to ft3/s
+
+        # ----    print some stuff for troubleshooting    ---- #
+        if self.cfg_bmi['verbose'] >=5:
+            print('out_mean:', self.out_mean)
+            print('out_std:', self.out_std)
+
+    #------------------------------------------------------------ 
+    def update(self):
+        with torch.no_grad():
+            
+            print('updating LSTM for t: ', self.t)
+
+            self.create_scaled_input_tensor()
+
+            self.lstm_output, self.h_t, self.c_t = self.lstm.forward(self.input_tensor, self.h_t, self.c_t)
+            
+            self.scale_output()
+            
+            self.t += 1
+            
+            print('for time: {} lstm output: {}'.format(self.t,self.streamflow))
+    
+    #------------------------------------------------------------ 
+    def update_until(self, last_update):
+        first_update=self.t
+        for t in range(first_update, last_update):
+            self.update()
+    #------------------------------------------------------------    
+    def finalize( self ):
+        return 0
+    
+    #------------------------------------------------------------
+    #------------------------------------------------------------
+    # LSTM: SETUP Functions
+    #------------------------------------------------------------
+    #------------------------------------------------------------
+
+    #-------------------------------------------------------------------
+    def get_training_configurations(self):
+        if self.cfg_bmi['train_cfg_file'] is not None:
+            self.cfg_train = Config._read_and_parse_config(self.cfg_bmi['train_cfg_file'])
+
+        # Collect the LSTM model architecture details from the configuration file
+        self.input_size        = len(self.cfg_train['dynamic_inputs']) + len(self.cfg_train['static_attributes'])
+        self.hidden_layer_size = self.cfg_train['hidden_size']
+        self.output_size       = len(self.cfg_train['target_variables']) 
+
+        # WARNING: This implimentation of the LSTM can only handle a batch size of 1
+        self.batch_size        = 1 #self.cfg_train['batch_size']
+
+        # Including a list of the model input names.
+        self.all_lstm_inputs = []
+        self.all_lstm_inputs.extend(self.cfg_train['dynamic_inputs'])
+        self.all_lstm_inputs.extend(self.cfg_train['static_attributes'])
+        
+        # Scaler data from the training set. This is used to normalize the data (input and output).
+        with open(self.cfg_train['run_dir'] / 'train_data' / 'train_data_scaler.p', 'rb') as fb:
+            self.train_data_scaler = pickle.load(fb)
+
+    #------------------------------------------------------------ 
+    def get_scaler_values(self):
+        # Mean and standard deviation for the inputs and LSTM outputs 
+        self.out_mean = self.train_data_scaler['xarray_feature_center']['qobs_mm_per_hour'].values
+        self.out_std = self.train_data_scaler['xarray_feature_scale']['qobs_mm_per_hour'].values
+        self.input_mean = []
+        self.input_mean.extend([self.train_data_scaler['xarray_feature_center'][x].values for x in self.cfg_train['dynamic_inputs']])
+        self.input_mean.extend([self.train_data_scaler['attribute_means'][x] for x in self.cfg_train['static_attributes']])
+        self.input_std = []
+        self.input_std.extend([self.train_data_scaler['xarray_feature_scale'][x].values for x in self.cfg_train['dynamic_inputs']])
+        self.input_std.extend([self.train_data_scaler['attribute_means'][x] for x in self.cfg_train['static_attributes']]) 
+        self.input_mean = np.array(self.input_mean)
+        self.input_std = np.array(self.input_std)
+
+    #------------------------------------------------------------ 
+    def create_scaled_input_tensor(self):
+        self.set_values()
+        self.input_array = np.array([self._values[self._var_name_map[x]] for x in self.all_lstm_inputs])
+        self.input_array_scaled = self.input_array * self.input_std + self.input_mean
+        self.input_tensor = torch.tensor(self.input_array_scaled)
+
+    #------------------------------------------------------------ 
+    def scale_output(self):
+        self.streamflow = (self.lstm_output[0,0,0].numpy().tolist() * self.out_std + self.out_mean) * self.output_factor
+
+    #-------------------------------------------------------------------
+    def read_initial_states(self):
+        h_t = np.genfromtxt(self.h_t_init_file, skip_header=1, delimiter=",")[:,1]
+        self.h_t = torch.tensor(h_t).view(1,1,-1)
+        c_t = np.genfromtxt(self.c_t_init_file, skip_header=1, delimiter=",")[:,1]
+        self.c_t = torch.tensor(c_t).view(1,1,-1)
+
+    #---------------------------------------------------------------------------- 
+    def set_static_attributes(self):
+        #------------------------------------------------------------ 
+        if 'elev_mean' in self.cfg_train['static_attributes']:
+            self.elev_mean = self.cfg_bmi['elev_mean']
+        #------------------------------------------------------------ 
+        if 'slope_mean' in self.cfg_train['static_attributes']:
+            self.slope_mean = self.cfg_bmi['slope_mean']
+        #------------------------------------------------------------ 
+    
+    #---------------------------------------------------------------------------- 
+    def initialize_forcings(self):
+        #------------------------------------------------------------ 
+        if 'total_precipitation' in self.cfg_train['dynamic_inputs']:
+            self.total_precipitation = 0
+        #------------------------------------------------------------ 
+        if 'temperature' in self.cfg_train['dynamic_inputs']:
+            self.temperature = 0
+
+    #------------------------------------------------------------ 
+    def set_values(self):
+        self._values = {'atmosphere_water__liquid_equivalent_precipitation_rate':self.total_precipitation,
+                        'land_surface_air__temperature':self.temperature,
+                        'basin__mean_of_elevation':self.elev_mean,
+                        'basin__mean_of_slope':self.slope_mean}
+    
+    #-------------------------------------------------------------------
     #-------------------------------------------------------------------
     # BMI: Model Information Functions
     #-------------------------------------------------------------------
+    #-------------------------------------------------------------------
+    
     def get_attribute(self, att_name):
     
         try:
             return self._att_map[ att_name.lower() ]
         except:
-            print('###################################################')
             print(' ERROR: Could not find attribute: ' + att_name)
-            print('###################################################')
-            print()
 
     #--------------------------------------------------------
     # Note: These are currently variables needed from other
@@ -212,173 +392,6 @@ class bmi_LSTM(Bmi):
         """ 
         var_name = self.get_var_name( long_var_name )
         setattr( self, var_name, value ) 
- 
-    #------------------------------------------------------------
-    # BMI: Model Control Functions
-    #------------------------------------------------------------ 
-
-    #-------------------------------------------------------------------
-    def initialize( self, bmi_cfg_file=None ):
-        
-        # First read in the BMI configuration. This will direct all the next moves.
-        if bmi_cfg_file is not None:
-            self.cfg_bmi = Config._read_and_parse_config(bmi_cfg_file)
-        else:
-            print("Error: No configuration provided, nothing to do...")
-    
-        # ----    print some stuff for troubleshooting    ---- #
-        if self.cfg_bmi['verbose'] >= 1:
-            print("Initializing LSTM")
-
-        # Now load in the configuration file for the specific LSTM
-        # This will include all the details about how the model was trained
-        # Inputs, outputs, hyper-parameters, etc.
-        if self.cfg_bmi['train_cfg_file'] is not None:
-            self.cfg_train = Config._read_and_parse_config(self.cfg_bmi['train_cfg_file'])
-
-        # Collect the LSTM model architecture details from the configuration file
-        self.input_size        = len(self.cfg_train['dynamic_inputs']) + len(self.cfg_train['static_attributes'])
-        self.hidden_layer_size = self.cfg_train['hidden_size']
-        self.output_size       = len(self.cfg_train['target_variables']) 
-        self.batch_size        = 1 #self.cfg_train['batch_size']
-
-        # ----    print some stuff for troubleshooting    ---- #
-        if self.cfg_bmi['verbose'] >=5:
-            print('LSTM model architecture')
-            print('input size', type(self.input_size), self.input_size)
-            print('hidden layer size', type(self.hidden_layer_size), self.hidden_layer_size)
-            print('output size', type(self.output_size), self.output_size)
-        
-        # Now we need to initialize an LSTM model.
-        self.lstm = nextgen_cuda_lstm.Nextgen_CudaLSTM(input_size=self.input_size, 
-                                                       hidden_layer_size=self.hidden_layer_size, 
-                                                       output_size=self.output_size, 
-                                                       batch_size=1, 
-                                                       seq_length=1)
-
-        # load in the model specific values (scalers, weights, etc.)
-
-        # Scaler data from the training set. This is used to normalize the data (input and output).
-        with open(self.cfg_train['run_dir'] / 'train_data' / 'train_data_scaler.p', 'rb') as fb:
-            self.train_data_scaler = pickle.load(fb)
-
-        # Mean and standard deviation for the inputs and LSTM outputs 
-        self.out_mean = self.train_data_scaler['xarray_feature_center']['qobs_mm_per_hour'].values
-        self.out_std = self.train_data_scaler['xarray_feature_scale']['qobs_mm_per_hour'].values
-        self.input_mean = [self.train_data_scaler['xarray_feature_center'][x].values for x in self.cfg_train['dynamic_inputs']]
-        self.input_mean.extend([self.train_data_scaler['attribute_means'][x] for x in self.cfg_train['static_attributes']])
-        self.input_std = [self.train_data_scaler['xarray_feature_scale'][x].values for x in self.cfg_train['dynamic_inputs']]
-        self.input_std.extend([self.train_data_scaler['attribute_means'][x] for x in self.cfg_train['static_attributes']]) 
-        self.input_mean = np.array(self.input_mean)
-        self.input_std = np.array(self.input_std)
-
-        # Save the default model weights. We need to make sure we have the same keys.
-        default_state_dict = self.lstm.state_dict()
-
-        # Trained model weights from Neuralhydrology.
-        trained_model_file = self.cfg_train['run_dir'] / 'model_epoch{}.pt'.format(str(self.cfg_train['epochs']).zfill(3))
-        trained_state_dict = torch.load(trained_model_file, map_location=torch.device('cpu'))
-
-        # Changing the name of the head weights, since different in NH
-        trained_state_dict['head.weight'] = trained_state_dict.pop('head.net.0.weight')
-        trained_state_dict['head.bias'] = trained_state_dict.pop('head.net.0.bias')
-        trained_state_dict = {x:trained_state_dict[x] for x in default_state_dict.keys()}
-
-        # Load in the trained weights.
-        self.lstm.load_state_dict(trained_state_dict)
-
-        # ----    Initialize the values for the input to the LSTM    ---- #
-        self.set_static_attributes()
-        self.initialize_forcings()
-        self.all_lstm_inputs = []
-        self.all_lstm_inputs.extend(self.cfg_train['dynamic_inputs'])
-        self.all_lstm_inputs.extend(self.cfg_train['static_attributes'])
-
-        self._values = {'atmosphere_water__liquid_equivalent_precipitation_rate':self.total_precipitation,
-                        'land_surface_air__temperature':self.temperature,
-                        'basin__mean_of_elevation':self.elev_mean,
-                        'basin__mean_of_slope':self.slope_mean}
-
-        self.t = 0
-        
-        if self.cfg_bmi['initial_state'] == 'zero':
-            self.h_t = torch.zeros(1, self.batch_size, self.hidden_layer_size).float()
-            self.c_t = torch.zeros(1, self.batch_size, self.hidden_layer_size).float()
-
-        self.output_factor =  self.cfg_bmi['area_sqkm'] * 35.315 # from m3/s to ft3/s
-
-        # ----    print some stuff for troubleshooting    ---- #
-        if self.cfg_bmi['verbose'] >=5:
-            print('out_mean:', self.out_mean)
-            print('out_std:', self.out_std)
-    
-    #------------------------------------------------------------ 
-    def create_scaled_input_tensor(self):
-        self.input_array = np.array([self._values[self._var_name_map[x]] for x in self.all_lstm_inputs])
-        self.input_array_scaled = self.input_array * self.input_std + self.input_mean
-        self.input_tensor = torch.tensor(self.input_array_scaled)
-
-    #------------------------------------------------------------ 
-    def scale_output(self):
-        self.streamflow = (self.lstm_output[0,0,0].numpy().tolist() * self.out_std + self.out_mean) * self.output_factor
-
-    #------------------------------------------------------------ 
-    def update(self):
-        with torch.no_grad():
-            
-            print('updating LSTM for t: ', self.t)
-
-            self.create_scaled_input_tensor()
-
-            self.lstm_output, self.h_t, self.c_t = self.lstm.forward(self.input_tensor, self.h_t, self.c_t)
-            
-            self.scale_output()
-            
-            self.t += 1
-            
-            print('for time: {} lstm output: {}'.format(self.t,self.streamflow))
-    
-    #------------------------------------------------------------ 
-    def update_until(self, last_update):
-        first_update=self.t
-        for t in range(first_update, last_update):
-            self.update()
-    #------------------------------------------------------------    
-    def finalize( self ):
-        return 0
-
-    #-------------------------------------------------------------------
-    def read_initial_states(self):
-        h_t = np.genfromtxt(self.h_t_init_file, skip_header=1, delimiter=",")[:,1]
-        self.h_t = torch.tensor(h_t).view(1,1,-1)
-        c_t = np.genfromtxt(self.c_t_init_file, skip_header=1, delimiter=",")[:,1]
-        self.c_t = torch.tensor(c_t).view(1,1,-1)
-
-    #-------------------------------------------------------------------
-    def load_scalers(self):
-
-        with open(self.scaler_file, 'rb') as fb:
-            self.scalers = pickle.load(fb)
-
-    #---------------------------------------------------------------------------- 
-    def set_static_attributes(self):
-        #------------------------------------------------------------ 
-        if 'elev_mean' in self.cfg_train['static_attributes']:
-            self.elev_mean = self.cfg_bmi['elev_mean']
-        #------------------------------------------------------------ 
-        if 'slope_mean' in self.cfg_train['static_attributes']:
-            self.slope_mean = self.cfg_bmi['slope_mean']
-        #------------------------------------------------------------ 
-    
-    #---------------------------------------------------------------------------- 
-    def initialize_forcings(self):
-        #------------------------------------------------------------ 
-        if 'total_precipitation' in self.cfg_train['dynamic_inputs']:
-            self.total_precipitation = 0
-        #------------------------------------------------------------ 
-        if 'temperature' in self.cfg_train['dynamic_inputs']:
-            self.temperature = 0
-        #------------------------------------------------------------ 
 
     #------------------------------------------------------------ 
     def get_component_name(self):
