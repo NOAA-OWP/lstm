@@ -68,6 +68,10 @@ class bmi_LSTM(Bmi):
     # This is going to get long, 
     #     since the input variable names could come from any forcing...
     #------------------------------------------------------
+    _var_name_map_long_first = {'atmosphere_water__liquid_equivalent_precipitation_rate':'total_precipitation',
+                     'land_surface_air__temperature':'temperature',
+                     'basin__mean_of_elevation':'elev_mean',
+                     'basin__mean_of_slope':'slope_mean'}
     _var_name_map = {'total_precipitation':'atmosphere_water__liquid_equivalent_precipitation_rate',
                      'temperature':'land_surface_air__temperature',
                      'elev_mean':'basin__mean_of_elevation',
@@ -152,7 +156,7 @@ class bmi_LSTM(Bmi):
     #-------------------------------------------------------------------
     def get_var_name(self, long_var_name):
                               
-        return self._var_name_map[ long_var_name ]
+        return self._var_name_map_long_first[ long_var_name ]
 
     #-------------------------------------------------------------------
     def get_var_units(self, long_var_name):
@@ -195,10 +199,8 @@ class bmi_LSTM(Bmi):
 
         return self.get_attribute( 'time_units' ) 
        
-
-
     #-------------------------------------------------------------------
-    def set_value(self, var_name, src):
+    def set_value(self, long_var_name, value):
         """Set model values.
 
         Parameters
@@ -208,8 +210,8 @@ class bmi_LSTM(Bmi):
         src : array_like
               Array of new values.
         """ 
-        val = self.get_value_ptr(var_name)
-        val[:] = src
+        var_name = self.get_var_name( long_var_name )
+        setattr( self, var_name, value ) 
  
     #------------------------------------------------------------
     # BMI: Model Control Functions
@@ -259,8 +261,16 @@ class bmi_LSTM(Bmi):
         # Scaler data from the training set. This is used to normalize the data (input and output).
         with open(self.cfg_train['run_dir'] / 'train_data' / 'train_data_scaler.p', 'rb') as fb:
             self.train_data_scaler = pickle.load(fb)
-        self.obs_mean = self.train_data_scaler['xarray_feature_center']['qobs_mm_per_hour'].values
-        self.obs_std = self.train_data_scaler['xarray_feature_scale']['qobs_mm_per_hour'].values
+
+        # Mean and standard deviation for the inputs and LSTM outputs 
+        self.out_mean = self.train_data_scaler['xarray_feature_center']['qobs_mm_per_hour'].values
+        self.out_std = self.train_data_scaler['xarray_feature_scale']['qobs_mm_per_hour'].values
+        self.input_mean = [self.train_data_scaler['xarray_feature_center'][x].values for x in self.cfg_train['dynamic_inputs']]
+        self.input_mean.extend([self.train_data_scaler['attribute_means'][x] for x in self.cfg_train['static_attributes']])
+        self.input_std = [self.train_data_scaler['xarray_feature_scale'][x].values for x in self.cfg_train['dynamic_inputs']]
+        self.input_std.extend([self.train_data_scaler['attribute_means'][x] for x in self.cfg_train['static_attributes']]) 
+        self.input_mean = np.array(self.input_mean)
+        self.input_std = np.array(self.input_std)
 
         # Save the default model weights. We need to make sure we have the same keys.
         default_state_dict = self.lstm.state_dict()
@@ -299,31 +309,33 @@ class bmi_LSTM(Bmi):
 
         # ----    print some stuff for troubleshooting    ---- #
         if self.cfg_bmi['verbose'] >=5:
-            print('self.train_data_scaler')
-            print(self.train_data_scaler)
-            print('dynamic_inputs')
-            print(self.cfg_train['dynamic_inputs'])
-            print('static_attributes')
-            print(self.cfg_train['static_attributes'])
-            print('These are the LSTM inputs:')
-            print(self.all_lstm_inputs)
-#            print('Training data scalers')
-#            print(self.train_data_scaler)
-#            print('pytorch_weights_dict')
-#            print(pytorch_weights_dict)    
-            print('obs_mean:', self.obs_mean)
-            print('obs_std:', self.obs_std)
+            print('out_mean:', self.out_mean)
+            print('out_std:', self.out_std)
+    
+    #------------------------------------------------------------ 
+    def create_scaled_input_tensor(self):
+        self.input_array = np.array([self._values[self._var_name_map[x]] for x in self.all_lstm_inputs])
+        self.input_array_scaled = self.input_array * self.input_std + self.input_mean
+        self.input_tensor = torch.tensor(self.input_array_scaled)
+
+    #------------------------------------------------------------ 
+    def scale_output(self):
+        self.streamflow = (self.lstm_output[0,0,0].numpy().tolist() * self.out_std + self.out_mean) * self.output_factor
+
     #------------------------------------------------------------ 
     def update(self):
         with torch.no_grad():
-            print('updating LSTM for t: ', self.t)
             
-            self.input_layer = torch.tensor([self._values[self._var_name_map[x]] for x in self.all_lstm_inputs])
+            print('updating LSTM for t: ', self.t)
 
-            lstm_output, self.h_t, self.c_t = self.lstm.forward(self.input_layer, self.h_t, self.c_t)
-            self.streamflow = (lstm_output[0,0,0].numpy().tolist() * self.obs_std + self.obs_mean) * self.output_factor
-#            self.output_list.append(self.streamflow)
+            self.create_scaled_input_tensor()
+
+            self.lstm_output, self.h_t, self.c_t = self.lstm.forward(self.input_tensor, self.h_t, self.c_t)
+            
+            self.scale_output()
+            
             self.t += 1
+            
             print('for time: {} lstm output: {}'.format(self.t,self.streamflow))
     
     #------------------------------------------------------------ 
@@ -336,38 +348,6 @@ class bmi_LSTM(Bmi):
         return 0
 
     #-------------------------------------------------------------------
-    def convert_precipitation_units(self, precip, conversion_factor):     
-        return precip * conversion_factor
-
-    #-------------------------------------------------------------------
-    def do_warmup(self):
-        self.h_t = torch.zeros(1, self.batch_size, self.hidden_layer_size).float()
-        self.c_t = torch.zeros(1, self.batch_size, self.hidden_layer_size).float()
-        for n_warmup_loops in range(10):
-            #for t in range(self.seq_length, self.warmup_tensor.shape[0]):
-            for t in range(self.seq_length+1, self.warmup_tensor.shape[0]):
-                with torch.no_grad():
-                    input_layer = self.warmup_tensor[t-self.seq_length:t, :]
-                    output, self.h_t, self.c_t = self.forward(input_layer, self.h_t, self.c_t)
-                    h_t = self.h_t.transpose(0,1)
-                    c_t = self.c_t.transpose(0,1)
-                    if t == self.warmup_tensor.shape[0] - 1:
-                        h_t_np = h_t[0,0,:].numpy()
-                        h_t_df = pd.DataFrame(h_t_np)
-                        h_t_df.to_csv(self.h_t_init_file)
-                        c_t_np = c_t[0,0,:].numpy()
-                        c_t_df = pd.DataFrame(c_t_np)
-                        c_t_df.to_csv(self.c_t_init_file)
-        h_t = self.h_t.transpose(0,1)
-        c_t = self.c_t.transpose(0,1)
-        h_t_np = h_t[0,0,:].numpy()
-        h_t_df = pd.DataFrame(h_t_np)
-        h_t_df.to_csv(self.h_t_init_file)
-        c_t_np = c_t[0,0,:].numpy()
-        c_t_df = pd.DataFrame(c_t_np)
-        c_t_df.to_csv(self.c_t_init_file)
-
-    #-------------------------------------------------------------------
     def read_initial_states(self):
         h_t = np.genfromtxt(self.h_t_init_file, skip_header=1, delimiter=",")[:,1]
         self.h_t = torch.tensor(h_t).view(1,1,-1)
@@ -375,126 +355,10 @@ class bmi_LSTM(Bmi):
         self.c_t = torch.tensor(c_t).view(1,1,-1)
 
     #-------------------------------------------------------------------
-    def split_wind_components(self, single_wind_speed):
-        U = single_wind_speed/2
-        V = single_wind_speed/2
-        return U, V
-
-    #-------------------------------------------------------------------
-    def load_forcing(self):
-        with open(self.forcing_file, 'r') as f:
-            df = pd.read_csv(f)
- #       df = df.rename(columns={'precip_rate':'RAINRATE', 'SPFH_2maboveground':'Q2D', 'TMP_2maboveground':'T2D', 
-        df = df.rename(columns={'APCP_surface':'RAINRATE', 'SPFH_2maboveground':'Q2D', 'TMP_2maboveground':'T2D', 
-                           'DLWRF_surface':'LWDOWN',  'DSWRF_surface':'SWDOWN',  'PRES_surface':'PSFC',
-                           'UGRD_10maboveground':'U2D', 'VGRD_10maboveground':'V2D'})
-
-        df['area_sqkm'] = [self.area_sqkm for i in range(df.shape[0])]
-        df['lat'] = [self.lat for i in range(df.shape[0])]
-        df['lon'] = [self.lon for i in range(df.shape[0])]
-        
-        # The precipitation rate units for the training set were obviously different than these forcings. Guessing it is a m -> mm conversion.
-     #   df['RAINRATE'] = self.convert_precipitation_units(df['RAINRATE'], 1000)
-
-        df = df.drop(['time'], axis=1) #cat-87.csv has no observation data
-
-        df = df.loc[:,['RAINRATE', 'Q2D', 'T2D', 'LWDOWN',  'SWDOWN',  'PSFC',  'U2D', 'V2D', 'area_sqkm', 'lat', 'lon']]
-
-        self.output_factor = df['area_sqkm'][0] * 35.315 # from m3/s to ft3/s
-
-        self.steps_in_forcing = df.shape[0]
-
-        self.forcings = pd.concat([self.nldas.iloc[(self.nldas.shape[0] - self.nwarm):,:], df])
-
-    #-------------------------------------------------------------------
-    def load_nldas_for_warmup(self):
-        
-        nldas = data_tools.load_hourly_nldas_forcings(self.warmup_forcing_file, self.lat, self.lon, self.area_sqkm)
-
-        nldas['U2D'], nldas['V2D'] = self.split_wind_components(nldas['Wind'])
-
-        self.nldas = nldas.loc['2015-01-01':'2015-11-30', ['RAINRATE', 'Q2D', 'T2D', 'LWDOWN',  'SWDOWN',  'PSFC',  
-                                                           'U2D', 'V2D', 'area_sqkm', 'lat', 'lon']]
-
-    #-------------------------------------------------------------------
-    def load_observations(self):
-
-        with open(self.observation_file, 'r') as f:
-            obs = pd.read_csv(f)
-
-        obs = pd.Series(data=list(obs[self.observation_column]), index=pd.to_datetime(obs.datetime)).resample('60T').mean()
-        
-        self.obs = obs.loc[self.test_date_start:self.test_date_end]
-
-    #-------------------------------------------------------------------
     def load_scalers(self):
 
         with open(self.scaler_file, 'rb') as fb:
             self.scalers = pickle.load(fb)
-
-    #-------------------------------------------------------------------
-    def calc_metrics(self):
-        diff_sum2 = 0
-        diff_sum_mean2 = 0
-        obs_mean = np.nanmean(np.array(self.obs))
-        count_samples = 0
-        for j, k in zip(self.output_list, self.obs):
-            if np.isnan(k):
-                continue
-            count_samples += 1
-            mod_diff = j-k
-            mean_diff = k-obs_mean
-            diff_sum2 += np.power((mod_diff),2)
-            diff_sum_mean2 += np.power((mean_diff),2)
-        nse = 1-(diff_sum2/diff_sum_mean2)
-        print('Nash-Suttcliffe Efficiency', nse)
-        print('on {} samples'.format(count_samples))
-
-    #------------------------------------------------------------ 
-    def run_model( self):
-        for self.t in range(self.istart, self.input_tensor.shape[0]):
-            with torch.no_grad():
-                self.input_layer = self.input_tensor[self.t-self.seq_length:self.t, :]
-                lstm_output, self.h_t, self.c_t = self.forward(self.input_layer, self.h_t, self.c_t)
-                output = (lstm_output[0,0,0].numpy().tolist() * self.obs_std + self.obs_mean) * self.output_factor
-                self.output_list.append(output)
-                print(output)
-        print('output stats')
-        print('mean', np.mean(self.output_list))
-        print('min', np.min(self.output_list))
-        print('max', np.max(self.output_list))
-        print('observation stats')
-        print('mean', np.nanmean(self.obs))
-        print('min', np.nanmin(self.obs))
-        print('max', np.nanmax(self.obs))
-        print('length obs', len(self.obs))
-        print('length output', len(self.output_list))
-
-    #---------------------------------------------------------------- 
-    def run_unit_tests(self):
-        #------------------------------------------------------------ 
-        if self.get_output_var_names()[0] == 'land_surface_water__runoff_volume_flux':
-            print('Unit test passed: get_output_var_names')
-        else:
-            print('Unit test failed: get_output_var_names')
-        #------------------------------------------------------------ 
-        if self.get_var_name('atmosphere_water__liquid_equivalent_precipitation_rate') == 'RAINRATE':
-            print('Unit test passed: get_var_name')
-        else:
-            print('Unit test failed: get_var_name')
-        #------------------------------------------------------------ 
-        if self.get_var_units('atmosphere_water__liquid_equivalent_precipitation_rate') == 'kg m-2':
-            if self.get_var_units("land_surface_water__runoff_volume_flux") == 'mm':
-                print('Unit test passed: get_var_units')
-            else:
-                print('Unit test failed: get_var_units on land_surface_water')
-        else:
-            print('Unit test failed: get_var_units on atmospheric_water')
-        #------------------------------------------------------------ 
-        if self.get_var_rank("land_surface_water__runoff_volume_flux") == 0:
-            print('Unit test passed: get_var_rank')
-        else:
-            print('Unit test failed: get_var_rank')
 
     #---------------------------------------------------------------------------- 
     def set_static_attributes(self):

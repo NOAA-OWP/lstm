@@ -14,6 +14,7 @@ model.initialize(bmi_cfg_file=Path('lstm_bmi_config.yml'))
 
 model.update()
 
-#model.set_value(1,'atmosphere_water__liquid_equivalent_precipitation_rate')
-
-#model.update()
+for i in range(1,10):
+#    model.set_value('land_surface_air__temperature',i)
+    model.set_value('atmosphere_water__liquid_equivalent_precipitation_rate',i)
+    model.update()
