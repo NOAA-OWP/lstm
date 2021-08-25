@@ -21,12 +21,9 @@ class bmi_LSTM(Bmi):
         """Create a Bmi LSTM model that is ready for initialization."""
         super(bmi_LSTM, self).__init__()
         print('thank you for choosing LSTM')
-        self._model = None
         self._values = {}
         self._var_units = {}
         self._var_loc = {}
-        self._grids = {}
-        self._grid_type = {}
         self._start_time = 0.0
         self._end_time = np.finfo("d").max
         self._time_units = "s"
@@ -103,32 +100,27 @@ class bmi_LSTM(Bmi):
     #-------------------------------------------------------------------
     def initialize( self, bmi_cfg_file=None ):
         
-        # First read in the BMI configuration. This will direct all the next moves.
+        # -------------- Read in the BMI configuration -------------------------#
+        # This will direct all the next moves.
         if bmi_cfg_file is not None:
             self.cfg_bmi = Config._read_and_parse_config(bmi_cfg_file)
         else:
             print("Error: No configuration provided, nothing to do...")
     
-        # ----    print some stuff for troubleshooting    ---- #
-        if self.cfg_bmi['verbose'] >= 1:
-            print("Initializing LSTM")
-
-        # Now load in the configuration file for the specific LSTM
+        # ------------- Load in the configuration file for the specific LSTM --#
         # This will include all the details about how the model was trained
-        # Inputs, outputs, hyper-parameters, etc.
+        # Inputs, outputs, hyper-parameters, scalers, weights, etc. etc.
         self.get_training_configurations()
+        self.get_scaler_values()
         
-        # Now we need to initialize an LSTM model.
+        # ------------- Initialize an LSTM model ------------------------------#
         self.lstm = nextgen_cuda_lstm.Nextgen_CudaLSTM(input_size=self.input_size, 
                                                        hidden_layer_size=self.hidden_layer_size, 
                                                        output_size=self.output_size, 
                                                        batch_size=1, 
                                                        seq_length=1)
 
-        # load in the model specific values (scalers, weights, etc.)
-
-        self.get_scaler_values()
-
+        # ------------ Load in the trained weights ----------------------------#
         # Save the default model weights. We need to make sure we have the same keys.
         default_state_dict = self.lstm.state_dict()
 
@@ -144,29 +136,23 @@ class bmi_LSTM(Bmi):
         # Load in the trained weights.
         self.lstm.load_state_dict(trained_state_dict)
 
-        # ----    Initialize the values for the input to the LSTM    ---- #
+        # ------------- Initialize the values for the input to the LSTM  -----#
         self.set_static_attributes()
         self.initialize_forcings()
         self.set_values()
-
-        self.t = 0
         
         if self.cfg_bmi['initial_state'] == 'zero':
             self.h_t = torch.zeros(1, self.batch_size, self.hidden_layer_size).float()
             self.c_t = torch.zeros(1, self.batch_size, self.hidden_layer_size).float()
 
-        self.output_factor =  self.cfg_bmi['area_sqkm'] * 35.315 # from m3/s to ft3/s
+        self.t = 0
 
-        # ----    print some stuff for troubleshooting    ---- #
-        if self.cfg_bmi['verbose'] >=5:
-            print('out_mean:', self.out_mean)
-            print('out_std:', self.out_std)
+        # ----------- The output is area normalized, this is needed to un-normalize it
+        self.output_factor =  self.cfg_bmi['area_sqkm'] * 35.315 / 1000000# from m3/s to ft3/s
 
     #------------------------------------------------------------ 
     def update(self):
         with torch.no_grad():
-            
-            print('updating LSTM for t: ', self.t)
 
             self.create_scaled_input_tensor()
 
@@ -175,8 +161,6 @@ class bmi_LSTM(Bmi):
             self.scale_output()
             
             self.t += 1
-            
-            print('for time: {} lstm output: {}'.format(self.t,self.streamflow))
     
     #------------------------------------------------------------ 
     def update_until(self, last_update):
@@ -233,7 +217,7 @@ class bmi_LSTM(Bmi):
     def create_scaled_input_tensor(self):
         self.set_values()
         self.input_array = np.array([self._values[self._var_name_map[x]] for x in self.all_lstm_inputs])
-        self.input_array_scaled = self.input_array * self.input_std + self.input_mean
+        self.input_array_scaled = (self.input_array - self.input_mean) / self.input_std 
         self.input_tensor = torch.tensor(self.input_array_scaled)
 
     #------------------------------------------------------------ 
