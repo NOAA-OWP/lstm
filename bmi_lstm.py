@@ -10,7 +10,7 @@ from pathlib import Path
 # Here is the LSTM model we want to run
 import nextgen_cuda_lstm
 # Configuration file functionality
-from neuralhydrology.utils.config import Config
+import yaml
 # LSTM here is based on PyTorch
 import torch
 from torch import nn
@@ -103,7 +103,10 @@ class bmi_LSTM(Bmi):
         # -------------- Read in the BMI configuration -------------------------#
         # This will direct all the next moves.
         if bmi_cfg_file is not None:
-            self.cfg_bmi = Config._read_and_parse_config(bmi_cfg_file)
+
+            with bmi_cfg_file.open('r') as fp:
+                cfg = yaml.load(fp)
+            self.cfg_bmi = self._parse_config(cfg)
         else:
             print("Error: No configuration provided, nothing to do...")
     
@@ -180,7 +183,9 @@ class bmi_LSTM(Bmi):
     #-------------------------------------------------------------------
     def get_training_configurations(self):
         if self.cfg_bmi['train_cfg_file'] is not None:
-            self.cfg_train = Config._read_and_parse_config(self.cfg_bmi['train_cfg_file'])
+            with self.cfg_bmi['train_cfg_file'].open('r') as fp:
+                cfg = yaml.load(fp)
+            self.cfg_train = self._parse_config(cfg)
 
         # Collect the LSTM model architecture details from the configuration file
         self.input_size        = len(self.cfg_train['dynamic_inputs']) + len(self.cfg_train['static_attributes'])
@@ -503,4 +508,35 @@ class bmi_LSTM(Bmi):
         return self._var_loc[name]
 
 
+    #-- Random utility functions
 
+    def _parse_config(self, cfg):
+        for key, val in cfg.items():
+            # convert all path strings to PosixPath objects
+            if any([key.endswith(x) for x in ['_dir', '_path', '_file', '_files']]):
+                if (val is not None) and (val != "None"):
+                    if isinstance(val, list):
+                        temp_list = []
+                        for element in val:
+                            temp_list.append(Path(element))
+                        cfg[key] = temp_list
+                    else:
+                        cfg[key] = Path(val)
+                else:
+                    cfg[key] = None
+
+            # convert Dates to pandas Datetime indexs
+            elif key.endswith('_date'):
+                if isinstance(val, list):
+                    temp_list = []
+                    for elem in val:
+                        temp_list.append(pd.to_datetime(elem, format='%d/%m/%Y'))
+                    cfg[key] = temp_list
+                else:
+                    cfg[key] = pd.to_datetime(val, format='%d/%m/%Y')
+
+            else:
+                pass
+
+        # Add more config parsing if necessary
+        return cfg
