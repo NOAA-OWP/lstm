@@ -1,7 +1,7 @@
 # Need these for BMI
 from bmipy import Bmi
 import time
-import data_tools
+#import data_tools
 # Basic utilities
 import numpy as np
 import pandas as pd
@@ -20,7 +20,6 @@ class bmi_LSTM(Bmi):
     def __init__(self):
         """Create a Bmi LSTM model that is ready for initialization."""
         super(bmi_LSTM, self).__init__()
-        print('thank you for choosing LSTM')
         self._values = {}
         self._var_units = {}
         self._var_loc = {}
@@ -69,7 +68,7 @@ class bmi_LSTM(Bmi):
                      'land_surface_air__temperature':'temperature',
                      'basin__mean_of_elevation':'elev_mean',
                      'basin__mean_of_slope':'slope_mean'}
-    _var_name_map = {'total_precipitation':'atmosphere_water__liquid_equivalent_precipitation_rate',
+    _var_name_map_short_first = {'total_precipitation':'atmosphere_water__liquid_equivalent_precipitation_rate',
                      'temperature':'land_surface_air__temperature',
                      'elev_mean':'basin__mean_of_elevation',
                      'slope_mean':'basin__mean_of_slope'}
@@ -142,7 +141,7 @@ class bmi_LSTM(Bmi):
         # ------------- Initialize the values for the input to the LSTM  -----#
         self.set_static_attributes()
         self.initialize_forcings()
-        self.set_values()
+        self.set_values_dictionary()
         
         if self.cfg_bmi['initial_state'] == 'zero':
             self.h_t = torch.zeros(1, self.batch_size, self.hidden_layer_size).float()
@@ -151,7 +150,8 @@ class bmi_LSTM(Bmi):
         self.t = 0
 
         # ----------- The output is area normalized, this is needed to un-normalize it
-        self.output_factor =  self.cfg_bmi['area_sqkm'] * 35.315 / 1000000# from m3/s to ft3/s
+        #                         mm->m                             km2 -> m2          hour->s    
+        self.output_factor_cms =  (1/1000) * (self.cfg_bmi['area_sqkm'] * 1000*1000) * (1/3600)
 
     #------------------------------------------------------------ 
     def update(self):
@@ -172,7 +172,8 @@ class bmi_LSTM(Bmi):
             self.update()
     #------------------------------------------------------------    
     def finalize( self ):
-        return 0
+        """Finalize model."""
+        self._model = None
     
     #------------------------------------------------------------
     #------------------------------------------------------------
@@ -199,6 +200,7 @@ class bmi_LSTM(Bmi):
         self.all_lstm_inputs = []
         self.all_lstm_inputs.extend(self.cfg_train['dynamic_inputs'])
         self.all_lstm_inputs.extend(self.cfg_train['static_attributes'])
+        self.all_lstm_input_values_dict = {x:0 for x in self.all_lstm_inputs} # sometimes we need to reference values with strings
         
         # Scaler data from the training set. This is used to normalize the data (input and output).
         with open(self.cfg_train['run_dir'] / 'train_data' / 'train_data_scaler.p', 'rb') as fb:
@@ -206,28 +208,37 @@ class bmi_LSTM(Bmi):
 
     #------------------------------------------------------------ 
     def get_scaler_values(self):
-        # Mean and standard deviation for the inputs and LSTM outputs 
-        self.out_mean = self.train_data_scaler['xarray_feature_center']['qobs_mm_per_hour'].values
-        self.out_std = self.train_data_scaler['xarray_feature_scale']['qobs_mm_per_hour'].values
+
+        """Mean and standard deviation for the inputs and LSTM outputs""" 
+
+        self.out_mean = self.train_data_scaler['xarray_feature_center'][self.cfg_train['target_variables'][0]].values
+        self.out_std = self.train_data_scaler['xarray_feature_scale'][self.cfg_train['target_variables'][0]].values
+
         self.input_mean = []
         self.input_mean.extend([self.train_data_scaler['xarray_feature_center'][x].values for x in self.cfg_train['dynamic_inputs']])
         self.input_mean.extend([self.train_data_scaler['attribute_means'][x] for x in self.cfg_train['static_attributes']])
+        self.input_mean = np.array(self.input_mean)
+
         self.input_std = []
         self.input_std.extend([self.train_data_scaler['xarray_feature_scale'][x].values for x in self.cfg_train['dynamic_inputs']])
-        self.input_std.extend([self.train_data_scaler['attribute_means'][x] for x in self.cfg_train['static_attributes']]) 
-        self.input_mean = np.array(self.input_mean)
+        self.input_std.extend([self.train_data_scaler['attribute_stds'][x] for x in self.cfg_train['static_attributes']]) 
         self.input_std = np.array(self.input_std)
 
     #------------------------------------------------------------ 
     def create_scaled_input_tensor(self):
-        self.set_values()
-        self.input_array = np.array([self._values[self._var_name_map[x]] for x in self.all_lstm_inputs])
+        self.set_values_dictionary()
+        self.input_array = np.array([self._values[self._var_name_map_short_first[x]] for x in self.all_lstm_inputs])
         self.input_array_scaled = (self.input_array - self.input_mean) / self.input_std 
         self.input_tensor = torch.tensor(self.input_array_scaled)
-
+        
     #------------------------------------------------------------ 
     def scale_output(self):
-        self.streamflow = (self.lstm_output[0,0,0].numpy().tolist() * self.out_std + self.out_mean) * self.output_factor
+        if self.cfg_train['target_variables'][0] == 'qobs_mm_per_hour':
+            self.surface_runoff_mm = (self.lstm_output[0,0,0].numpy().tolist() * self.out_std + self.out_mean)
+        elif self.cfg_train['target_variables'][0] == 'QObs(mm/d)':
+            self.surface_runoff_mm = (self.lstm_output[0,0,0].numpy().tolist() * self.out_std + self.out_mean) * (1/24)
+        self.streamflow_cms = self.surface_runoff_mm * self.output_factor_cms
+        self.streamflow_cfs = self.streamflow_cms * (1/35.314)
 
     #-------------------------------------------------------------------
     def read_initial_states(self):
@@ -241,9 +252,11 @@ class bmi_LSTM(Bmi):
         #------------------------------------------------------------ 
         if 'elev_mean' in self.cfg_train['static_attributes']:
             self.elev_mean = self.cfg_bmi['elev_mean']
+            self.all_lstm_input_values_dict['elev_mean'] = self.cfg_bmi['elev_mean']
         #------------------------------------------------------------ 
         if 'slope_mean' in self.cfg_train['static_attributes']:
             self.slope_mean = self.cfg_bmi['slope_mean']
+            self.all_lstm_input_values_dict['slope_mean'] = self.cfg_bmi['slope_mean']
         #------------------------------------------------------------ 
     
     #---------------------------------------------------------------------------- 
@@ -256,12 +269,12 @@ class bmi_LSTM(Bmi):
             self.temperature = 0
 
     #------------------------------------------------------------ 
-    def set_values(self):
-        self._values = {'atmosphere_water__liquid_equivalent_precipitation_rate':self.total_precipitation,
-                        'land_surface_air__temperature':self.temperature,
-                        'basin__mean_of_elevation':self.elev_mean,
-                        'basin__mean_of_slope':self.slope_mean}
-    
+    def set_values_dictionary(self):
+        #self._values = {'atmosphere_water__liquid_equivalent_precipitation_rate':self.total_precipitation,
+        #                'land_surface_air__temperature':self.temperature,
+        #                'basin__mean_of_elevation':self.elev_mean,
+        #                'basin__mean_of_slope':self.slope_mean}
+        self._values = {self._var_name_map_short_first[x]:self.all_lstm_input_values_dict[x] for x in self.all_lstm_inputs}
     #-------------------------------------------------------------------
     #-------------------------------------------------------------------
     # BMI: Model Information Functions
@@ -380,7 +393,11 @@ class bmi_LSTM(Bmi):
               Array of new values.
         """ 
         var_name = self.get_var_name( long_var_name )
-        setattr( self, var_name, value ) 
+        setattr( self, var_name, value )
+
+        # jmframe: this next line is basically a duplicate. 
+        # I guess we should stick with the attribute names instead of a dictionary approach. 
+        self.all_lstm_input_values_dict[var_name] = value
 
     #------------------------------------------------------------ 
     def get_component_name(self):
