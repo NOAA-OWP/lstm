@@ -104,7 +104,7 @@ class bmi_LSTM(Bmi):
         if bmi_cfg_file is not None:
 
             with bmi_cfg_file.open('r') as fp:
-                cfg = yaml.load(fp)
+                cfg = yaml.safe_load(fp)
             self.cfg_bmi = self._parse_config(cfg)
         else:
             print("Error: No configuration provided, nothing to do...")
@@ -185,7 +185,7 @@ class bmi_LSTM(Bmi):
     def get_training_configurations(self):
         if self.cfg_bmi['train_cfg_file'] is not None:
             with self.cfg_bmi['train_cfg_file'].open('r') as fp:
-                cfg = yaml.load(fp)
+                cfg = yaml.safe_load(fp)
             self.cfg_train = self._parse_config(cfg)
 
         # Collect the LSTM model architecture details from the configuration file
