@@ -1,0 +1,11 @@
+time_step: '1 hour'
+initial_state: 'zero'
+basin_name: 'Narraguagus River at Cherryfield, Maine'
+basin_id: '01022500'
+area_sqkm: 620.38
+lat: 44.60797
+lon: -67.93524
+train_cfg_file: ./trained_neuralhydrology_models/hourly_A/config.yml
+verbose: 1
+elev_mean: 92.68
+slope_mean: 17.79072

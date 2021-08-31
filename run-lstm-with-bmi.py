@@ -1,14 +1,11 @@
 
 import numpy as np
-import pandas as pd
 import torch
 from torch import nn
-import pickle
-import matplotlib.pyplot as plt
 #import data_tools
 from pathlib import Path
 from netCDF4 import Dataset
-# This is the LSTM we actually want to use
+# This is the BMI LSTM that we will be running
 import bmi_lstm
 
 # creating an instance of an LSTM model
@@ -17,11 +14,11 @@ model = bmi_lstm.bmi_LSTM()
 
 # Initializing the BMI
 print('Initializing the BMI')
-model.initialize(bmi_cfg_file=Path('lstm_bmi_config.yml'))
+model.initialize(bmi_cfg_file=Path('./bmi_config_files/01022500_A.yml'))
 
 # Get input data that matches the LSTM test runs
 print('Get input data that matches the LSTM test runs')
-sample_data = Dataset(Path(model.cfg_train['run_dir'] / 'test_data/usgs-streamflow-nldas_hourly.nc'), 'r')
+sample_data = Dataset(Path('./data/usgs-streamflow-nldas_hourly.nc'), 'r')
 
 # Now loop through the inputs, set the forcing values, and update the model
 print('Now loop through the inputs, set the forcing values, and update the model')

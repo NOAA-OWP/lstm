@@ -1,0 +1,64 @@
+batch_size: 256
+cache_validation_data: false
+clip_gradient_norm: 1
+commit_hash: ffbc600
+data_dir: ./data/
+dataset: hourly_camels_us
+device: cpu
+dynamic_inputs:
+- total_precipitation
+- temperature
+epochs: 50
+experiment_name: hourly_test_run
+forcings: nldas_hourly
+head: regression
+hidden_size: 16
+img_log_dir: ./trained_neuralhydrology_models/hourly_B/img_log
+initial_forget_bias: 3
+learning_rate:
+  0: 0.001
+  10: 0.0005
+  20: 0.0001
+  30: 5e-05
+  40: 1e-05
+log_interval: 5000
+log_n_figures: 20000
+log_tensorboard: false
+loss: NSE
+metrics:
+- NSE
+- KGE
+- Alpha-NSE
+- Beta-NSE
+model: cudalstm
+num_workers: 0
+number_of_basins: 4
+ode_method: euler
+ode_num_unfolds: 4
+ode_random_freq_lower_bound: 5D
+optimizer: Adam
+output_activation: linear
+output_dropout: 0.4
+package_version: 1.0.0-beta3
+predict_last_n: 1
+run_dir: ./trained_neuralhydrology_models/hourly_B
+save_validation_results: false
+save_weights_every: 10
+seed: 111
+seq_length: 336
+static_attributes:
+- elev_mean
+target_variables:
+- qobs_mm_per_hour
+test_basin_file: ./trained_neuralhydrology_models/hourly_B/test/test_data/4_basins_test_set.txt
+test_end_date: 31/12/2002
+test_start_date: 01/01/2000
+train_basin_file: ./trained_neuralhydrology_models/hourly_B/test/test_data/4_basins_test_set.txt
+train_dir: ./trained_neuralhydrology_models/hourly_B/train_data
+train_end_date: 31/12/2001
+train_start_date: 01/01/2000
+validate_every: 10000
+validate_n_random_basins: 40000
+validation_basin_file: ./trained_neuralhydrology_models/hourly_B/test/test_data/4_basins_test_set.txt
+validation_end_date: 31/12/2002
+validation_start_date: 01/01/2001

@@ -1,0 +1,18 @@
+name: bmi_lstm
+channels:
+  - pytorch
+  - defaults
+  - anaconda
+  - conda-forge
+dependencies:
+  - bmipy
+  - bokeh
+  - cpuonly
+  - jupyter
+  - matplotlib
+  - netcdf4
+  - pandas
+  - python=3.7
+  - pytorch
+  - ruamel.yaml
+  - xarray=0.14.0
