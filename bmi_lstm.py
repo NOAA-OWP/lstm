@@ -46,7 +46,7 @@ class bmi_LSTM(Bmi):
         'land_surface_radiation~incoming~longwave__energy_flux',
         'land_surface_air__pressure',
         'atmosphere_air_water~vapor__relative_saturation',
-        'atmosphere_water__liquid_equivalent_precipitation_rate',
+        'atmosphere_water__time_integral_of_precipitation_mass_flux',
         'land_surface_radiation~incoming~shortwave__energy_flux',
         'land_surface_air__temperature',
         'land_surface_wind__x_component_of_velocity',
