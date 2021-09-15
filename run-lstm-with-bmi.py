@@ -24,7 +24,7 @@ sample_data = Dataset(Path('./data/usgs-streamflow-nldas_hourly.nc'), 'r')
 print('Now loop through the inputs, set the forcing values, and update the model')
 for precip, temp in zip(list(sample_data['total_precipitation'][3].data),
                         list(sample_data['temperature'][3].data)):
-    model.set_value('atmosphere_water__liquid_equivalent_precipitation_rate',precip)
+    model.set_value('atmosphere_water__time_integral_of_precipitation_mass_flux',precip)
     model.set_value('land_surface_air__temperature',temp)
     print('the temperature and precipitation are set to {:.2f} and {:.2f}'.format(model.temperature, model.total_precipitation))
     model.update()

@@ -1,0 +1,90 @@
+batch_size: 256
+clip_gradient_norm: 1
+clip_targets_to_zero:
+- QObs(mm/d)
+data_dir: /home/jmframe/data/camels_data_hourly
+dataset: hourly_camels_us
+device: cuda:0
+dynamic_inputs:
+- total_precipitation
+- longwave_radiation
+- shortwave_radiation
+- pressure
+- specific_humidity
+- temperature
+- wind_u
+- wind_v
+epochs: 30
+experiment_name: hourly_all_attributes_and_forcings
+forcings: nldas_hourly
+head: regression
+hidden_size: 64
+img_log_dir: /home/jmframe/neuralhydrology/runs/hourly_all_attributes_and_forcings_1309_114916/img_log
+initial_forget_bias: 3
+learning_rate:
+  0: 0.0005
+  10: 0.0001
+  25: 5e-05
+log_interval: 5
+log_n_figures: 0
+log_tensorboard: false
+loss: NSE
+mass_inputs:
+metrics:
+- NSE
+- KGE
+- Alpha-NSE
+- Beta-NSE
+model: cudalstm
+num_workers: 8
+number_of_basins: 516
+optimizer: Adam
+output_activation: linear
+output_dropout: 0.4
+package_version: 1.0.0-beta1
+predict_last_n: 24
+run_dir: /home/jmframe/neuralhydrology/runs/hourly_all_attributes_and_forcings_1309_114916
+save_weights_every: 5
+seed: 102
+seq_length: 336
+static_attributes:
+- elev_mean
+- slope_mean
+- area_gages2
+- frac_forest
+- lai_max
+- lai_diff
+- gvf_max
+- gvf_diff
+- soil_depth_pelletier
+- soil_depth_statsgo
+- soil_porosity
+- soil_conductivity
+- max_water_content
+- sand_frac
+- silt_frac
+- clay_frac
+- carbonate_rocks_frac
+- geol_permeability
+- p_mean
+- pet_mean
+- aridity
+- frac_snow
+- high_prec_freq
+- high_prec_dur
+- low_prec_freq
+- low_prec_dur
+target_variables:
+- QObs(mm/d)
+test_basin_file: basin_list_516.txt
+test_end_date: 30/09/2018
+test_start_date: 01/10/1980
+train_basin_file: basin_list_516.txt
+train_dir: /home/jmframe/neuralhydrology/runs/hourly_all_attributes_and_forcings_1309_114916/train_data
+train_end_date: 30/09/2018
+train_start_date: 01/10/1980
+validate_every: 100
+validate_n_random_basins: 1
+validation_basin_file: basin_list_516.txt
+validation_end_date: 30/09/2018
+validation_start_date: 01/10/1980
