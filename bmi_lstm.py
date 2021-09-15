@@ -41,7 +41,6 @@ class bmi_LSTM(Bmi):
 
     #---------------------------------------------
     # Input variable names (CSDMS standard names)
-    # LWDOWN,PSFC,Q2D,RAINRATE,SWDOWN,T2D,U2D,V2D
     #---------------------------------------------
     _input_var_names = [
         'land_surface_radiation~incoming~longwave__energy_flux',
@@ -64,14 +63,45 @@ class bmi_LSTM(Bmi):
     # This is going to get long, 
     #     since the input variable names could come from any forcing...
     #------------------------------------------------------
-    _var_name_map_long_first = {'atmosphere_water__liquid_equivalent_precipitation_rate':'total_precipitation',
-                     'land_surface_air__temperature':'temperature',
-                     'basin__mean_of_elevation':'elev_mean',
-                     'basin__mean_of_slope':'slope_mean'}
-    _var_name_map_short_first = {'total_precipitation':'atmosphere_water__liquid_equivalent_precipitation_rate',
-                     'temperature':'land_surface_air__temperature',
-                     'elev_mean':'basin__mean_of_elevation',
-                     'slope_mean':'basin__mean_of_slope'}
+    _var_name_map_long_first = {
+                                'land_surface_water__runoff_volume_flux':'land_surface_water__runoff_volume_flux',
+                                #--------------   Dynamic inputs --------------------------------
+                                'atmosphere_water__time_integral_of_precipitation_mass_flux':'total_precipitation',
+                                'land_surface_radiation~incoming~longwave__energy_flux':'longwave_radiation',
+                                'land_surface_radiation~incoming~shortwave__energy_flux':'shortwave_radiation',
+                                'atmosphere_air_water~vapor__relative_saturation':'specific_humidity',
+                                'land_surface_air__pressure':'pressure',
+                                'land_surface_air__temperature':'temperature',
+                                'land_surface_wind__x_component_of_velocity':'wind_u',
+                                'land_surface_wind__y_component_of_velocity':'wind_v',
+                                #--------------   STATIC Attributes -----------------------------
+                                'basin__area':'area_gages2',
+                                'ratio__mean_potential_evapotranspiration__mean_precipitation':'aridity',
+                                'basin__carbonate_rocks_area_fraction':'carbonate_rocks_frac',
+                                'soil_clay__volume_fraction':'clay_frac',
+                                'basin__mean_of_elevation':'elev_mean',
+                                'land_vegetation__forest_area_fraction':'frac_forest',
+                                'atmosphere_water__precipitation_falling_as_snow_fraction':'frac_snow',
+                                'bedrock__permeability':'geol_permeability',
+                                'land_vegetation__max_monthly_mean_of_green_vegetation_fraction':'gvf_max',
+                                'land_vegetation__diff__max_min_monthly_mean_of_green_vegetation_fraction':'gvf_diff',
+                                'atmospher_water__mean_duration_of_high_precipitation_events':'high_prec_dur',
+                                'atmospher_water__frequency_of_high_precipitation_events':'high_prec_freq',
+                                'land_vegetation__diff_max_min_monthly_mean_of_leaf-area_index':'lai_diff',
+                                'land_vegetation__max_monthly_mean_of_leaf-area_index':'lai_max',
+                                'atmosphere_water__low_precipitation_duration':'low_prec_dur',
+                                'atmosphere_water__precipitation_frequency':'low_prec_freq',
+                                'maximum_water_content':'max_water_content',
+                                'atmospher_water__daily_mean_of_liquid_equivalent_precipitation_rate':'p_mean',
+                                'land_surface_water__daily_mean_of_potential_evaporation_flux':'pet_mean',
+                                'basin__mean_of_slope':'slope_mean',
+                                'soil__saturated_hydraulic_conductivity':'soil_conductivity',
+                                'soil_bedrock_top__depth__pelletier':'soil_depth_pelletier',
+                                'soil_bedrock_top__depth__statsgo':'soil_depth_statsgo',
+                                'soil__porosity':'soil_porosity',
+                                'soil_sand__volume_fraction':'sand_frac',
+                                'soil_silt__volume_fraction':'silt_frac'
+                                 }
 
     #------------------------------------------------------
     # Create a Python dictionary that maps CSDMS Standard
@@ -89,6 +119,21 @@ class bmi_LSTM(Bmi):
          'land_surface_wind__x_component_of_velocity':'m s-1',
          'land_surface_wind__y_component_of_velocity':'m s-1'}
 
+
+    #------------------------------------------------------
+    # A list of static attributes. Not all these need to be used.
+    #------------------------------------------------------
+    #   These attributes can be anaything, but usually come from the CAMELS attributes:
+    #   Nans Addor Andrew J. Newman, Naoki Mizukami, and Martyn P. Clark
+    #   The CAMELS data set: catchment attributes and meteorology for large-sample studies
+    #   https://doi.org/10.5194/hess-21-5293-2017
+    _static_attributes_list = ['area_gages2','aridity','carbonate_rocks_frac','clay_frac',
+                               'elev_mean','frac_forest','frac_snow','geol_permeability',
+                               'gvf_max','gvf_diff','high_prec_dur','high_prec_freq','lai_diff',
+                               'lai_max','low_prec_dur','low_prec_freq','max_water_content',
+                               'p_mean','pet_mean','slope_mean','soil_conductivity',
+                               'soil_depth_pelletier','soil_depth_statsgo','soil_porosity',
+                               'sand_frac','silt_frac']
 
     #------------------------------------------------------------
     #------------------------------------------------------------
@@ -109,6 +154,8 @@ class bmi_LSTM(Bmi):
         else:
             print("Error: No configuration provided, nothing to do...")
     
+        self._var_name_map_short_first = {self._var_name_map_long_first[long_name]:long_name for long_name in self._var_name_map_long_first.keys()}
+        
         # ------------- Load in the configuration file for the specific LSTM --#
         # This will include all the details about how the model was trained
         # Inputs, outputs, hyper-parameters, scalers, weights, etc. etc.
@@ -249,31 +296,28 @@ class bmi_LSTM(Bmi):
 
     #---------------------------------------------------------------------------- 
     def set_static_attributes(self):
-        #------------------------------------------------------------ 
-        if 'elev_mean' in self.cfg_train['static_attributes']:
-            self.elev_mean = self.cfg_bmi['elev_mean']
-            self.all_lstm_input_values_dict['elev_mean'] = self.cfg_bmi['elev_mean']
-        #------------------------------------------------------------ 
-        if 'slope_mean' in self.cfg_train['static_attributes']:
-            self.slope_mean = self.cfg_bmi['slope_mean']
-            self.all_lstm_input_values_dict['slope_mean'] = self.cfg_bmi['slope_mean']
-        #------------------------------------------------------------ 
+        """ Get the static attributes from the configuration file
+        """
+        for attribute in self._static_attributes_list:
+            if attribute in self.cfg_train['static_attributes']:
+                
+                # This is probably the right way to do it,
+                setattr(self, attribute, self.cfg_bmi[attribute])
+                
+                # and this is just in case.
+                self.all_lstm_input_values_dict[attribute] = self.cfg_bmi[attribute]
     
     #---------------------------------------------------------------------------- 
     def initialize_forcings(self):
-        #------------------------------------------------------------ 
-        if 'total_precipitation' in self.cfg_train['dynamic_inputs']:
-            self.total_precipitation = 0
-        #------------------------------------------------------------ 
-        if 'temperature' in self.cfg_train['dynamic_inputs']:
-            self.temperature = 0
+        for forcing_name in self.cfg_train['dynamic_inputs']:
+            setattr(self, forcing_name, 0)
 
     #------------------------------------------------------------ 
     def set_values_dictionary(self):
-        #self._values = {'atmosphere_water__liquid_equivalent_precipitation_rate':self.total_precipitation,
-        #                'land_surface_air__temperature':self.temperature,
-        #                'basin__mean_of_elevation':self.elev_mean,
-        #                'basin__mean_of_slope':self.slope_mean}
+        """
+            This is a dictionary of all the input values
+            This is useful for creating the input array 
+        """
         self._values = {self._var_name_map_short_first[x]:self.all_lstm_input_values_dict[x] for x in self.all_lstm_inputs}
     #-------------------------------------------------------------------
     #-------------------------------------------------------------------
