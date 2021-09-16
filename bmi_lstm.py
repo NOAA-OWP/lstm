@@ -22,11 +22,14 @@ class bmi_LSTM(Bmi):
         super(bmi_LSTM, self).__init__()
         self._values = {}
         self._var_units = {}
-        self._var_loc = {}
+        self._var_loc = "node"
+        self._var_grid_id = 0
         self._start_time = 0.0
         self._end_time = np.finfo("d").max
-        self._time_units = "s"
-
+        # JG Note: this is defined in _att_map.time_units, remove and def here otherwise
+        # self._time_units = "s"
+        #self.streamflow_cms = 0
+        
     #----------------------------------------------
     # Required, static attributes of the model
     #----------------------------------------------
@@ -34,7 +37,8 @@ class bmi_LSTM(Bmi):
         'model_name':         'LSTM for Next Generation NWM',
         'version':            '1.0',
         'author_name':        'Jonathan Martin Frame',
-        'grid_type':          'none',
+        'grid_type':          'scalar',
+        'time_step_size':      1,
         'time_step_type':     'donno',
         'step_method':        'none',
         'time_units':         '1 hour' }
@@ -76,7 +80,7 @@ class bmi_LSTM(Bmi):
     #------------------------------------------------------
     # Create a Python dictionary that maps CSDMS Standard
     # Names to the units of each model variable.
-    #------------------------------------------------------
+    #-------------------------_var_name_map_long_first-----------------------------
     _var_units_map = {
         'land_surface_water__runoff_volume_flux':'mm',
         #--------------------------------------------------
@@ -275,6 +279,7 @@ class bmi_LSTM(Bmi):
         #                'basin__mean_of_elevation':self.elev_mean,
         #                'basin__mean_of_slope':self.slope_mean}
         self._values = {self._var_name_map_short_first[x]:self.all_lstm_input_values_dict[x] for x in self.all_lstm_inputs}
+
     #-------------------------------------------------------------------
     #-------------------------------------------------------------------
     # BMI: Model Information Functions
@@ -294,6 +299,7 @@ class bmi_LSTM(Bmi):
     #--------------------------------------------------------   
     def get_input_var_names(self):
 
+        #return self._values
         return self._input_var_names
 
     def get_output_var_names(self):
@@ -333,6 +339,15 @@ class bmi_LSTM(Bmi):
         array_like
             Value array.
         """
+        # try:
+        #     var_name = self.get_var_name( var_name )
+        #     getattr( self, var_name )
+
+        # # JG Note: confirm rhs w jmframe
+        # #self.all_lstm_input_values_dict['land_surface_water__runoff_volume_flux'] = self.streamflow_cms
+        # except:
+        self._values['land_surface_water__runoff_volume_flux'] = self.streamflow_cms
+        
         return self._values[var_name]
 
     #-------------------------------------------------------------------
@@ -347,8 +362,19 @@ class bmi_LSTM(Bmi):
                                                              
     #-------------------------------------------------------------------
     def get_var_type(self, long_var_name):
+        """Data type of variable.
 
-        return str( type(self.get_value( long_var_name )) )
+        Parameters
+        ----------
+        var_name : str
+            Name of variable as CSDMS Standard Name.
+
+        Returns
+        -------
+        str
+            Data type.
+        """
+        return str(self.get_value_ptr(long_var_name).dtype)
 
     #-------------------------------------------------------------------
     def get_var_rank(self, long_var_name):
@@ -358,23 +384,23 @@ class bmi_LSTM(Bmi):
     #-------------------------------------------------------------------
     def get_start_time( self ):
     
-        return 0.0
+        return self._start_time
 
     #-------------------------------------------------------------------
     def get_end_time( self ):
 
-        return (self.n_steps * self.dt)
+        return self._end_time
 
 
     #-------------------------------------------------------------------
     def get_current_time( self ):
 
-        return self.time
+        return self.t
 
     #-------------------------------------------------------------------
     def get_time_step( self ):
 
-        return self.dt
+        return self.get_attribute( 'time_step_size' )
 
     #-------------------------------------------------------------------
     def get_time_units( self ):
@@ -402,7 +428,8 @@ class bmi_LSTM(Bmi):
     #------------------------------------------------------------ 
     def get_component_name(self):
         """Name of the component."""
-        return self._name
+        return self.get_attribute( 'model_name' ) 
+        #return self._name
 
     #------------------------------------------------------------ 
     def get_input_item_count(self):
@@ -492,19 +519,26 @@ class bmi_LSTM(Bmi):
         raise NotImplementedError("get_grid_origin") 
 
     def get_grid_rank(self, grid_id):
-        raise NotImplementedError("get_grid_rank") 
+        
+        # 0 is the only id we have
+        if grid_id == 0:
+            return 1
 
     def get_grid_shape(self, grid_id, shape):
         raise NotImplementedError("get_grid_shape") 
 
     def get_grid_size(self, grid_id):
-        raise NotImplementedError("get_grid_size") 
+       
+       # 0 is the only id we have
+        if grid_id == 0:
+            return 1
 
     def get_grid_spacing(self, grid_id, spacing):
         raise NotImplementedError("get_grid_spacing") 
 
-    def get_grid_type(self):
-        raise NotImplementedError("get_grid_type") 
+    def get_grid_type(self, grid_id):
+        if grid_id == 0:
+            return 'scalar'
 
     def get_grid_x(self):
         raise NotImplementedError("get_grid_x") 
@@ -515,14 +549,20 @@ class bmi_LSTM(Bmi):
     def get_grid_z(self):
         raise NotImplementedError("get_grid_z") 
 
-    def get_var_grid(self):
-        raise NotImplementedError("get_var_grid") 
+    def get_var_grid(self, name):
+        
+        # all vars have grid 0 but check if its in names list first
+        if name in (self._output_var_names + self._input_var_names):
+            return self._var_grid_id  
 
     def get_var_itemsize(self, name):
         return np.dtype(self.get_var_type(name)).itemsize
 
     def get_var_location(self, name):
-        return self._var_loc[name]
+        
+        # all vars have location node but check if its in names list first
+        if name in (self._output_var_names + self._input_var_names):
+            return self._var_loc
 
 
     #-- Random utility functions
