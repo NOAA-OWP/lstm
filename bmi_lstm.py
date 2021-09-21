@@ -14,6 +14,7 @@ import yaml
 # LSTM here is based on PyTorch
 import torch
 from torch import nn
+import sys
 
 class bmi_LSTM(Bmi):
 
@@ -21,11 +22,17 @@ class bmi_LSTM(Bmi):
         """Create a Bmi LSTM model that is ready for initialization."""
         super(bmi_LSTM, self).__init__()
         self._values = {}
-        self._var_units = {}
-        self._var_loc = {}
+        # self._var_units = {}      # JG Edit (unused, set in _var_units_map)
+        self._var_loc = "node"      # JG Edit
+        self._var_grid_id = 0       # JG Edit
         self._start_time = 0.0
         self._end_time = np.finfo("d").max
-        self._time_units = "s"
+        # self._time_units = "s"    # JG Edit (unused, set in _att_map)
+        
+        # JG Edit: these need to be initialized here as scale_output() called in update()
+        self.streamflow_cms = 0.0
+        self.streamflow_fms = 0.0
+        self.surface_runoff_mm = 0.0
 
     #----------------------------------------------
     # Required, static attributes of the model
@@ -34,9 +41,10 @@ class bmi_LSTM(Bmi):
         'model_name':         'LSTM for Next Generation NWM',
         'version':            '1.0',
         'author_name':        'Jonathan Martin Frame',
-        'grid_type':          'none',
-        'time_step_type':     'donno',
-        'step_method':        'none',
+        'grid_type':          'scalar', # JG Edit
+        'time_step_size':      1,       # JG Edit
+        #'time_step_type':     'donno', # JG Edit (unused)  
+        #'step_method':        'none',  # JG Edit (unused)
         'time_units':         '1 hour' }
 
     #---------------------------------------------
@@ -63,61 +71,62 @@ class bmi_LSTM(Bmi):
     # This is going to get long, 
     #     since the input variable names could come from any forcing...
     #------------------------------------------------------
-    _var_name_map_long_first = {
-                                'land_surface_water__runoff_volume_flux':'land_surface_water__runoff_volume_flux',
+    #_var_name_map_long_first = {
+    _var_name_units_map = {
+                                'land_surface_water__runoff_volume_flux':['streamflow_cfs','ft3 s-1'],
                                 #--------------   Dynamic inputs --------------------------------
-                                'atmosphere_water__time_integral_of_precipitation_mass_flux':'total_precipitation',
-                                'land_surface_radiation~incoming~longwave__energy_flux':'longwave_radiation',
-                                'land_surface_radiation~incoming~shortwave__energy_flux':'shortwave_radiation',
-                                'atmosphere_air_water~vapor__relative_saturation':'specific_humidity',
-                                'land_surface_air__pressure':'pressure',
-                                'land_surface_air__temperature':'temperature',
-                                'land_surface_wind__x_component_of_velocity':'wind_u',
-                                'land_surface_wind__y_component_of_velocity':'wind_v',
+                                'atmosphere_water__time_integral_of_precipitation_mass_flux':['total_precipitation','kg m-2'],
+                                'land_surface_radiation~incoming~longwave__energy_flux':['longwave_radiation','W m-2'],
+                                'land_surface_radiation~incoming~shortwave__energy_flux':['shortwave_radiation','W m-2'],
+                                'atmosphere_air_water~vapor__relative_saturation':['specific_humidity','kg kg-1'],
+                                'land_surface_air__pressure':['pressure','Pa'],
+                                'land_surface_air__temperature':['temperature','K'],
+                                'land_surface_wind__x_component_of_velocity':['wind_u','m s-1'],
+                                'land_surface_wind__y_component_of_velocity':['wind_v','m s-1'],
                                 #--------------   STATIC Attributes -----------------------------
-                                'basin__area':'area_gages2',
-                                'ratio__mean_potential_evapotranspiration__mean_precipitation':'aridity',
-                                'basin__carbonate_rocks_area_fraction':'carbonate_rocks_frac',
-                                'soil_clay__volume_fraction':'clay_frac',
-                                'basin__mean_of_elevation':'elev_mean',
-                                'land_vegetation__forest_area_fraction':'frac_forest',
-                                'atmosphere_water__precipitation_falling_as_snow_fraction':'frac_snow',
-                                'bedrock__permeability':'geol_permeability',
-                                'land_vegetation__max_monthly_mean_of_green_vegetation_fraction':'gvf_max',
-                                'land_vegetation__diff__max_min_monthly_mean_of_green_vegetation_fraction':'gvf_diff',
-                                'atmospher_water__mean_duration_of_high_precipitation_events':'high_prec_dur',
-                                'atmospher_water__frequency_of_high_precipitation_events':'high_prec_freq',
-                                'land_vegetation__diff_max_min_monthly_mean_of_leaf-area_index':'lai_diff',
-                                'land_vegetation__max_monthly_mean_of_leaf-area_index':'lai_max',
-                                'atmosphere_water__low_precipitation_duration':'low_prec_dur',
-                                'atmosphere_water__precipitation_frequency':'low_prec_freq',
-                                'maximum_water_content':'max_water_content',
-                                'atmospher_water__daily_mean_of_liquid_equivalent_precipitation_rate':'p_mean',
-                                'land_surface_water__daily_mean_of_potential_evaporation_flux':'pet_mean',
-                                'basin__mean_of_slope':'slope_mean',
-                                'soil__saturated_hydraulic_conductivity':'soil_conductivity',
-                                'soil_bedrock_top__depth__pelletier':'soil_depth_pelletier',
-                                'soil_bedrock_top__depth__statsgo':'soil_depth_statsgo',
-                                'soil__porosity':'soil_porosity',
-                                'soil_sand__volume_fraction':'sand_frac',
-                                'soil_silt__volume_fraction':'silt_frac'
+                                'basin__area':['area_gages2','km2'],
+                                'ratio__mean_potential_evapotranspiration__mean_precipitation':['aridity','-'],
+                                'basin__carbonate_rocks_area_fraction':['carbonate_rocks_frac','-'],
+                                'soil_clay__volume_fraction':['clay_frac','percent'],
+                                'basin__mean_of_elevation':['elev_mean','m'],
+                                'land_vegetation__forest_area_fraction':['frac_forest','-'],
+                                'atmosphere_water__precipitation_falling_as_snow_fraction':['frac_snow','-'],
+                                'bedrock__permeability':['geol_permeability','m2'],
+                                'land_vegetation__max_monthly_mean_of_green_vegetation_fraction':['gvf_max','-'],
+                                'land_vegetation__diff__max_min_monthly_mean_of_green_vegetation_fraction':['gvf_diff','-'],
+                                'atmospher_water__mean_duration_of_high_precipitation_events':['high_prec_dur','d'],
+                                'atmospher_water__frequency_of_high_precipitation_events':['high_prec_freq','d yr-1'],
+                                'land_vegetation__diff_max_min_monthly_mean_of_leaf-area_index':['lai_diff','-'],
+                                'land_vegetation__max_monthly_mean_of_leaf-area_index':['lai_max','-'],
+                                'atmosphere_water__low_precipitation_duration':['low_prec_dur','d'],
+                                'atmosphere_water__precipitation_frequency':['low_prec_freq','d yr-1'],
+                                'maximum_water_content':['max_water_content','m'],
+                                'atmospher_water__daily_mean_of_liquid_equivalent_precipitation_rate':['p_mean','mm d-1'],
+                                'land_surface_water__daily_mean_of_potential_evaporation_flux':['pet_mean','mm d-1'],
+                                'basin__mean_of_slope':['slope_mean','m km-1'],
+                                'soil__saturated_hydraulic_conductivity':['soil_conductivity','cm hr-1'],
+                                'soil_bedrock_top__depth__pelletier':['soil_depth_pelletier','m'],
+                                'soil_bedrock_top__depth__statsgo':['soil_depth_statsgo','m'],
+                                'soil__porosity':['soil_porosity','-'],
+                                'soil_sand__volume_fraction':['sand_frac','percent'],
+                                'soil_silt__volume_fraction':['silt_frac','percent']
                                  }
 
     #------------------------------------------------------
     # Create a Python dictionary that maps CSDMS Standard
     # Names to the units of each model variable.
     #------------------------------------------------------
-    _var_units_map = {
-        'land_surface_water__runoff_volume_flux':'mm',
-        #--------------------------------------------------
-         'land_surface_radiation~incoming~longwave__energy_flux':'W m-2',
-         'land_surface_air__pressure':'Pa',
-         'atmosphere_air_water~vapor__relative_saturation':'kg kg-1',
-         'atmosphere_water__liquid_equivalent_precipitation_rate':'kg m-2',
-         'land_surface_radiation~incoming~shortwave__energy_flux':'W m-2',
-         'land_surface_air__temperature':'K',
-         'land_surface_wind__x_component_of_velocity':'m s-1',
-         'land_surface_wind__y_component_of_velocity':'m s-1'}
+#    _var_units_map = {
+#        'land_surface_water__runoff_volume_flux':'mm',
+#        #--------------------------------------------------
+#         'land_surface_radiation~incoming~longwave__energy_flux':'W m-2',
+#         'land_surface_air__pressure':'Pa',
+#         'atmosphere_air_water~vapor__relative_saturation':'kg kg-1',
+#         'atmosphere_water__liquid_equivalent_precipitation_rate':'kg m-2',
+#         'land_surface_radiation~incoming~shortwave__energy_flux':'W m-2',
+#         'land_surface_air__temperature':'K',
+#         'land_surface_wind__x_component_of_velocity':'m s-1',
+#         'land_surface_wind__y_component_of_velocity':'m s-1'}
 
 
     #------------------------------------------------------
@@ -143,6 +152,19 @@ class bmi_LSTM(Bmi):
 
     #-------------------------------------------------------------------
     def initialize( self, bmi_cfg_file=None ):
+
+        # ----- Create some lookup tabels from the long variable names --------#
+        self._var_name_map_long_first = {long_name:self._var_name_units_map[long_name][0] for long_name in self._var_name_units_map.keys()}
+        self._var_name_map_short_first = {self._var_name_units_map[long_name][0]:long_name for long_name in self._var_name_units_map.keys()}
+        self._var_units_map = {long_name:self._var_name_units_map[long_name][1] for long_name in self._var_name_units_map.keys()}
+        
+        # -------------- Initalize all the variables --------------------------# 
+        # -------------- so that they'll be picked up with the get functions --#
+        for var_name in list(self._var_name_units_map.keys()):
+            # ---------- All the variables are single values ------------------#
+            # ---------- so just set to zero for now.        ------------------#
+            self._values[var_name] = 0
+            setattr( self, var_name, 0 )
         
         # -------------- Read in the BMI configuration -------------------------#
         # This will direct all the next moves.
@@ -153,8 +175,6 @@ class bmi_LSTM(Bmi):
             self.cfg_bmi = self._parse_config(cfg)
         else:
             print("Error: No configuration provided, nothing to do...")
-    
-        self._var_name_map_short_first = {self._var_name_map_long_first[long_name]:long_name for long_name in self._var_name_map_long_first.keys()}
         
         # ------------- Load in the configuration file for the specific LSTM --#
         # This will include all the details about how the model was trained
@@ -188,7 +208,6 @@ class bmi_LSTM(Bmi):
         # ------------- Initialize the values for the input to the LSTM  -----#
         self.set_static_attributes()
         self.initialize_forcings()
-        self.set_values_dictionary()
         
         if self.cfg_bmi['initial_state'] == 'zero':
             self.h_t = torch.zeros(1, self.batch_size, self.hidden_layer_size).float()
@@ -247,7 +266,6 @@ class bmi_LSTM(Bmi):
         self.all_lstm_inputs = []
         self.all_lstm_inputs.extend(self.cfg_train['dynamic_inputs'])
         self.all_lstm_inputs.extend(self.cfg_train['static_attributes'])
-        self.all_lstm_input_values_dict = {x:0 for x in self.all_lstm_inputs} # sometimes we need to reference values with strings
         
         # Scaler data from the training set. This is used to normalize the data (input and output).
         with open(self.cfg_train['run_dir'] / 'train_data' / 'train_data_scaler.p', 'rb') as fb:
@@ -273,8 +291,11 @@ class bmi_LSTM(Bmi):
 
     #------------------------------------------------------------ 
     def create_scaled_input_tensor(self):
-        self.set_values_dictionary()
+        
+        # TODO: Choose to store values in dictionary or not.
+        self.input_array = np.array([getattr(self, self._var_name_map_short_first[x]) for x in self.all_lstm_inputs])
         self.input_array = np.array([self._values[self._var_name_map_short_first[x]] for x in self.all_lstm_inputs])
+        
         self.input_array_scaled = (self.input_array - self.input_mean) / self.input_std 
         self.input_tensor = torch.tensor(self.input_array_scaled)
         
@@ -285,7 +306,9 @@ class bmi_LSTM(Bmi):
         elif self.cfg_train['target_variables'][0] == 'QObs(mm/d)':
             self.surface_runoff_mm = (self.lstm_output[0,0,0].numpy().tolist() * self.out_std + self.out_mean) * (1/24)
         self.streamflow_cms = self.surface_runoff_mm * self.output_factor_cms
-        self.streamflow_cfs = self.streamflow_cms * (1/35.314)
+
+        self._values['land_surface_water__runoff_volume_flux'] = self.streamflow_cms * (1/35.314)
+        self.land_surface_water__runoff_volume_flux = self.streamflow_cms * (1/35.314)
 
     #-------------------------------------------------------------------
     def read_initial_states(self):
@@ -301,24 +324,17 @@ class bmi_LSTM(Bmi):
         for attribute in self._static_attributes_list:
             if attribute in self.cfg_train['static_attributes']:
                 
-                # This is probably the right way to do it,
+                # This is probably the better way to do it,
                 setattr(self, attribute, self.cfg_bmi[attribute])
                 
-                # and this is just in case.
-                self.all_lstm_input_values_dict[attribute] = self.cfg_bmi[attribute]
+                # and this is just in case. _values dictionary is in the example
+                self._values[attribute] = self.cfg_bmi[attribute]
     
     #---------------------------------------------------------------------------- 
     def initialize_forcings(self):
         for forcing_name in self.cfg_train['dynamic_inputs']:
             setattr(self, forcing_name, 0)
 
-    #------------------------------------------------------------ 
-    def set_values_dictionary(self):
-        """
-            This is a dictionary of all the input values
-            This is useful for creating the input array 
-        """
-        self._values = {self._var_name_map_short_first[x]:self.all_lstm_input_values_dict[x] for x in self.all_lstm_inputs}
     #-------------------------------------------------------------------
     #-------------------------------------------------------------------
     # BMI: Model Information Functions
@@ -344,10 +360,22 @@ class bmi_LSTM(Bmi):
  
         return self._output_var_names
 
-    #-------------------------------------------------------------------
-    # BMI: Variable Information Functions
-    #-------------------------------------------------------------------
-    #def get_value(self, var_name, dest):
+    #------------------------------------------------------------ 
+    def get_component_name(self):
+        """Name of the component."""
+        return self.get_attribute( 'model_name' ) #JG Edit
+
+    #------------------------------------------------------------ 
+    def get_input_item_count(self):
+        """Get names of input variables."""
+        return len(self._input_var_names)
+
+    #------------------------------------------------------------ 
+    def get_output_item_count(self):
+        """Get names of output variables."""
+        return len(self._output_var_names)
+
+    #------------------------------------------------------------ 
     def get_value(self, var_name):
         """Copy of values.
         Parameters
@@ -361,9 +389,7 @@ class bmi_LSTM(Bmi):
         array_like
             Copy of values.
         """
-        #dest[:] = self.get_value_ptr(var_name).flatten()
         return self.get_value_ptr(var_name)
-        #return dest
 
     #-------------------------------------------------------------------
     def get_value_ptr(self, var_name):
@@ -377,8 +403,16 @@ class bmi_LSTM(Bmi):
         array_like
             Value array.
         """
-        return self._values[var_name]
+        if getattr(self, var_name) != self._values[var_name]:
+            print("WARNING: The variable ({}) stored in two locations is inconsistent".format(var_name))
+        
+        return getattr(self, var_name)   # We don't need to store the variable in a dict and as attributes
+#        return self._values[var_name]   # Pick a place to store them and stick with it.
 
+    #-------------------------------------------------------------------
+    #-------------------------------------------------------------------
+    # BMI: Variable Information Functions
+    #-------------------------------------------------------------------
     #-------------------------------------------------------------------
     def get_var_name(self, long_var_name):
                               
@@ -391,10 +425,44 @@ class bmi_LSTM(Bmi):
                                                              
     #-------------------------------------------------------------------
     def get_var_type(self, long_var_name):
+        """Data type of variable.
 
-        return str( type(self.get_value( long_var_name )) )
+        Parameters
+        ----------
+        var_name : str
+            Name of variable as CSDMS Standard Name.
+
+        Returns
+        -------
+        str
+            Data type.
+        """
+        # JG Edit
+        return self.get_value_ptr(long_var_name)  #.dtype
+    
+    #------------------------------------------------------------ 
+    def get_var_grid(self, name):
+        
+        # JG Edit
+        # all vars have grid 0 but check if its in names list first
+        if name in (self._output_var_names + self._input_var_names):
+            return self._var_grid_id  
+
+    #------------------------------------------------------------ 
+    def get_var_itemsize(self, name):
+#        return np.dtype(self.get_var_type(name)).itemsize
+        return np.array(self.get_value(name)).itemsize
+
+    #------------------------------------------------------------ 
+    def get_var_location(self, name):
+        
+        # JG Edit
+        # all vars have location node but check if its in names list first
+        if name in (self._output_var_names + self._input_var_names):
+            return self._var_loc
 
     #-------------------------------------------------------------------
+    # JG Note: what is this used for?
     def get_var_rank(self, long_var_name):
 
         return np.int16(0)
@@ -402,23 +470,23 @@ class bmi_LSTM(Bmi):
     #-------------------------------------------------------------------
     def get_start_time( self ):
     
-        return 0.0
+        return self._start_time #JG Edit
 
     #-------------------------------------------------------------------
     def get_end_time( self ):
 
-        return (self.n_steps * self.dt)
+        return self._end_time #JG Edit
 
 
     #-------------------------------------------------------------------
     def get_current_time( self ):
 
-        return self.time
+        return self.t #JG Edit
 
     #-------------------------------------------------------------------
     def get_time_step( self ):
 
-        return self.dt
+        return self.get_attribute( 'time_step_size' ) #JG: Edit
 
     #-------------------------------------------------------------------
     def get_time_units( self ):
@@ -426,7 +494,7 @@ class bmi_LSTM(Bmi):
         return self.get_attribute( 'time_units' ) 
        
     #-------------------------------------------------------------------
-    def set_value(self, long_var_name, value):
+    def set_value(self, var_name, value):
         """Set model values.
 
         Parameters
@@ -436,27 +504,11 @@ class bmi_LSTM(Bmi):
         src : array_like
               Array of new values.
         """ 
-        var_name = self.get_var_name( long_var_name )
         setattr( self, var_name, value )
 
         # jmframe: this next line is basically a duplicate. 
         # I guess we should stick with the attribute names instead of a dictionary approach. 
-        self.all_lstm_input_values_dict[var_name] = value
-
-    #------------------------------------------------------------ 
-    def get_component_name(self):
-        """Name of the component."""
-        return self._name
-
-    #------------------------------------------------------------ 
-    def get_input_item_count(self):
-        """Get names of input variables."""
-        return len(self._input_var_names)
-
-    #------------------------------------------------------------ 
-    def get_output_item_count(self):
-        """Get names of output variables."""
-        return len(self._output_var_names)
+        self._values[var_name] = value
 
     #------------------------------------------------------------ 
     def set_value_at_indices(self, name, inds, src):
@@ -470,8 +522,19 @@ class bmi_LSTM(Bmi):
         indices : array_like
             Array of indices.
         """
-        val = self.get_value_ptr(name)
-        val.flat[inds] = src
+        # JG Note: TODO confirm this is correct. Get/set values ~=
+#        val = self.get_value_ptr(name)
+#        val.flat[inds] = src
+
+        #JMFrame: chances are that the index will be zero, so let's include that logic
+        if np.array(self.get_value(name)).flatten().shape[0] == 1:
+            self.set_value(name, src)
+        else:
+            # JMFrame: Need to set the value with the updated array with new index value
+            val = self.get_value_ptr(name)
+            for i in inds.shape:
+                val.flatten()[inds[i]] = src[i]
+            self.set_value(name, val)
 
     #------------------------------------------------------------ 
     def get_var_nbytes(self, var_name):
@@ -485,7 +548,8 @@ class bmi_LSTM(Bmi):
         int
             Size of data array in bytes.
         """
-        return self.get_value_ptr(var_name).nbytes
+        # JMFrame NOTE: Had to import sys for this function
+        return sys.getsizeof(self.get_value_ptr(var_name))
 
     #------------------------------------------------------------ 
     def get_value_at_indices(self, var_name, dest, indices):
@@ -503,9 +567,16 @@ class bmi_LSTM(Bmi):
         array_like
             Values at indices.
         """
-        dest[:] = self.get_value_ptr(var_name).take(indices)
-        return dest
+        #JMFrame: chances are that the index will be zero, so let's include that logic
+        if np.array(self.get_value(var_name)).flatten().shape[0] == 1:
+            return self.get_value(var_name)
+        else:
+            val_array = self.get_value(var_name).flatten()
+            return np.array([val_array[i] for i in indices])
 
+    # JG Note: remaining grid funcs do not apply for type 'scalar'
+    #   Yet all functions in the BMI must be implemented 
+    #   See https://bmi.readthedocs.io/en/latest/bmi.best_practices.html          
     #------------------------------------------------------------ 
     def get_grid_edge_count(self, grid):
         raise NotImplementedError("get_grid_edge_count")
@@ -526,50 +597,68 @@ class bmi_LSTM(Bmi):
     def get_grid_face_nodes(self, grid, face_nodes):
         raise NotImplementedError("get_grid_face_nodes")
     
+    #------------------------------------------------------------ 
     def get_grid_node_count(self, grid):
         raise NotImplementedError("get_grid_node_count")
 
+    #------------------------------------------------------------ 
     def get_grid_nodes_per_face(self, grid, nodes_per_face):
         raise NotImplementedError("get_grid_nodes_per_face") 
     
+    #------------------------------------------------------------ 
     def get_grid_origin(self, grid_id, origin):
         raise NotImplementedError("get_grid_origin") 
 
+    #------------------------------------------------------------ 
     def get_grid_rank(self, grid_id):
-        raise NotImplementedError("get_grid_rank") 
+ 
+        # JG Edit
+        # 0 is the only id we have
+        if grid_id == 0: 
+            return 1
 
+    #------------------------------------------------------------ 
     def get_grid_shape(self, grid_id, shape):
         raise NotImplementedError("get_grid_shape") 
 
+    #------------------------------------------------------------ 
     def get_grid_size(self, grid_id):
-        raise NotImplementedError("get_grid_size") 
+       
+        # JG Edit
+        # 0 is the only id we have
+        if grid_id == 0:
+            return 1
 
+    #------------------------------------------------------------ 
     def get_grid_spacing(self, grid_id, spacing):
         raise NotImplementedError("get_grid_spacing") 
 
-    def get_grid_type(self):
-        raise NotImplementedError("get_grid_type") 
+    #------------------------------------------------------------ 
+    def get_grid_type(self, grid_id=0):
 
+        # JG Edit
+        # 0 is the only id we have        
+        if grid_id == 0:
+            return 'scalar'
+
+    #------------------------------------------------------------ 
     def get_grid_x(self):
         raise NotImplementedError("get_grid_x") 
 
+    #------------------------------------------------------------ 
     def get_grid_y(self):
         raise NotImplementedError("get_grid_y") 
 
+    #------------------------------------------------------------ 
     def get_grid_z(self):
         raise NotImplementedError("get_grid_z") 
 
-    def get_var_grid(self):
-        raise NotImplementedError("get_var_grid") 
 
-    def get_var_itemsize(self, name):
-        return np.dtype(self.get_var_type(name)).itemsize
-
-    def get_var_location(self, name):
-        return self._var_loc[name]
-
-
+    #------------------------------------------------------------ 
+    #------------------------------------------------------------ 
     #-- Random utility functions
+    #------------------------------------------------------------ 
+    #------------------------------------------------------------ 
 
     def _parse_config(self, cfg):
         for key, val in cfg.items():
