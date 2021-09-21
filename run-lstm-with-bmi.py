@@ -26,7 +26,10 @@ for precip, temp in zip(list(sample_data['total_precipitation'][3].data),
                         list(sample_data['temperature'][3].data)):
     model.set_value('atmosphere_water__liquid_equivalent_precipitation_rate',precip)
     model.set_value('land_surface_air__temperature',temp)
-    print('the temperature and precipitation are set to {:.2f} and {:.2f}'.format(model.temperature, model.total_precipitation))
+    print('the temperature and precipitation set values are {:.2f} and {:.2f}'.format(model.temperature, model.total_precipitation))
+    # JG Edit: 09.16.2021 these get/set values match :)
+    # print('the temperature and precipitation get values are {:.2f} and {:.2f}'.format(model.get_value('land_surface_air__temperature'),
+    # 	model.get_value('atmosphere_water__liquid_equivalent_precipitation_rate')))
     model.update()
     print('the streamflow (CFS) at time {} is {:.2f}'.format(model.t, model.streamflow_cfs))
 
