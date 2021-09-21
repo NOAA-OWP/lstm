@@ -14,6 +14,7 @@ import yaml
 # LSTM here is based on PyTorch
 import torch
 from torch import nn
+import sys
 
 class bmi_LSTM(Bmi):
 
@@ -291,10 +292,9 @@ class bmi_LSTM(Bmi):
     #------------------------------------------------------------ 
     def create_scaled_input_tensor(self):
         
+        # TODO: Choose to store values in dictionary or not.
         self.input_array = np.array([getattr(self, self._var_name_map_short_first[x]) for x in self.all_lstm_inputs])
-        print(self.input_array)
         self.input_array = np.array([self._values[self._var_name_map_short_first[x]] for x in self.all_lstm_inputs])
-        print(self.input_array)
         
         self.input_array_scaled = (self.input_array - self.input_mean) / self.input_std 
         self.input_tensor = torch.tensor(self.input_array_scaled)
@@ -403,8 +403,11 @@ class bmi_LSTM(Bmi):
         array_like
             Value array.
         """
-        return getattr(self, var_name)
-#        return self._values[var_name]
+        if getattr(self, var_name) != self._values[var_name]:
+            print("WARNING: The variable ({}) stored in two locations is inconsistent".format(var_name))
+        
+        return getattr(self, var_name)   # We don't need to store the variable in a dict and as attributes
+#        return self._values[var_name]   # Pick a place to store them and stick with it.
 
     #-------------------------------------------------------------------
     #-------------------------------------------------------------------
@@ -435,7 +438,7 @@ class bmi_LSTM(Bmi):
             Data type.
         """
         # JG Edit
-        return str(self.get_value_ptr(long_var_name).dtype)
+        return self.get_value_ptr(long_var_name)  #.dtype
     
     #------------------------------------------------------------ 
     def get_var_grid(self, name):
@@ -447,7 +450,8 @@ class bmi_LSTM(Bmi):
 
     #------------------------------------------------------------ 
     def get_var_itemsize(self, name):
-        return np.dtype(self.get_var_type(name)).itemsize
+#        return np.dtype(self.get_var_type(name)).itemsize
+        return np.array(self.get_value(name)).itemsize
 
     #------------------------------------------------------------ 
     def get_var_location(self, name):
@@ -458,6 +462,7 @@ class bmi_LSTM(Bmi):
             return self._var_loc
 
     #-------------------------------------------------------------------
+    # JG Note: what is this used for?
     def get_var_rank(self, long_var_name):
 
         return np.int16(0)
@@ -465,12 +470,12 @@ class bmi_LSTM(Bmi):
     #-------------------------------------------------------------------
     def get_start_time( self ):
     
-        return 0.0
+        return self._start_time #JG Edit
 
     #-------------------------------------------------------------------
     def get_end_time( self ):
 
-        return (self.n_steps * self.dt)
+        return self._end_time #JG Edit
 
 
     #-------------------------------------------------------------------
@@ -481,7 +486,7 @@ class bmi_LSTM(Bmi):
     #-------------------------------------------------------------------
     def get_time_step( self ):
 
-        return self.dt
+        return self.get_attribute( 'time_step_size' ) #JG: Edit
 
     #-------------------------------------------------------------------
     def get_time_units( self ):
@@ -500,7 +505,6 @@ class bmi_LSTM(Bmi):
               Array of new values.
         """ 
         setattr( self, var_name, value )
-        print("DELETEME: "+var_name, getattr( self, var_name ))
 
         # jmframe: this next line is basically a duplicate. 
         # I guess we should stick with the attribute names instead of a dictionary approach. 
@@ -518,8 +522,19 @@ class bmi_LSTM(Bmi):
         indices : array_like
             Array of indices.
         """
-        val = self.get_value_ptr(name)
-        val.flat[inds] = src
+        # JG Note: TODO confirm this is correct. Get/set values ~=
+#        val = self.get_value_ptr(name)
+#        val.flat[inds] = src
+
+        #JMFrame: chances are that the index will be zero, so let's include that logic
+        if np.array(self.get_value(name)).flatten().shape[0] == 1:
+            self.set_value(name, src)
+        else:
+            # JMFrame: Need to set the value with the updated array with new index value
+            val = self.get_value_ptr(name)
+            for i in inds.shape:
+                val.flatten()[inds[i]] = src[i]
+            self.set_value(name, val)
 
     #------------------------------------------------------------ 
     def get_var_nbytes(self, var_name):
@@ -533,7 +548,8 @@ class bmi_LSTM(Bmi):
         int
             Size of data array in bytes.
         """
-        return self.get_value_ptr(var_name).nbytes
+        # JMFrame NOTE: Had to import sys for this function
+        return sys.getsizeof(self.get_value_ptr(var_name))
 
     #------------------------------------------------------------ 
     def get_value_at_indices(self, var_name, dest, indices):
@@ -551,8 +567,12 @@ class bmi_LSTM(Bmi):
         array_like
             Values at indices.
         """
-        dest[:] = self.get_value_ptr(var_name).take(indices)
-        return dest
+        #JMFrame: chances are that the index will be zero, so let's include that logic
+        if np.array(self.get_value(var_name)).flatten().shape[0] == 1:
+            return self.get_value(var_name)
+        else:
+            val_array = self.get_value(var_name).flatten()
+            return np.array([val_array[i] for i in indices])
 
     # JG Note: remaining grid funcs do not apply for type 'scalar'
     #   Yet all functions in the BMI must be implemented 
@@ -591,7 +611,11 @@ class bmi_LSTM(Bmi):
 
     #------------------------------------------------------------ 
     def get_grid_rank(self, grid_id):
-        raise NotImplementedError("get_grid_rank") 
+ 
+        # JG Edit
+        # 0 is the only id we have
+        if grid_id == 0: 
+            return 1
 
     #------------------------------------------------------------ 
     def get_grid_shape(self, grid_id, shape):
@@ -599,15 +623,23 @@ class bmi_LSTM(Bmi):
 
     #------------------------------------------------------------ 
     def get_grid_size(self, grid_id):
-        raise NotImplementedError("get_grid_size") 
+       
+        # JG Edit
+        # 0 is the only id we have
+        if grid_id == 0:
+            return 1
 
     #------------------------------------------------------------ 
     def get_grid_spacing(self, grid_id, spacing):
         raise NotImplementedError("get_grid_spacing") 
 
     #------------------------------------------------------------ 
-    def get_grid_type(self):
-        raise NotImplementedError("get_grid_type") 
+    def get_grid_type(self, grid_id=0):
+
+        # JG Edit
+        # 0 is the only id we have        
+        if grid_id == 0:
+            return 'scalar'
 
     #------------------------------------------------------------ 
     def get_grid_x(self):

@@ -148,8 +148,12 @@ for var_name in (bmi.get_output_var_names() + bmi.get_input_var_names()[3:6:2]):
     #-------------------------------------------------------------------
     # get_var_type()
     # JG NOTE: 09.16.2021 AttributeError: 'float' object has no attribute 'dtype'
+    
+    # JF NOTE: the print statement needs a string to concatonate
+    # JF NOTE: and the type is a native python command.
+
     try:
-        print ("  type: " + bmi.get_var_type(var_name))
+        print ("  type: " + str(bmi.get_var_type(var_name)))
         if var_name_counter == 0:
             pass_count += 1
     except:
@@ -314,7 +318,7 @@ for var_name in (bmi.get_input_var_names()[3:6:2]):
     #   either definition or way I am calling it here is no go       
     try:
         bmi.set_value_at_indices(var_name,[0], -9.0)
-        print ("  set value at indices: -9.0")      
+        print ("  set value at indices: -9.0, and got value:", bmi.get_value(var_name))      
         if var_name_counter == 0: 
             pass_count += 1
     except:
@@ -344,7 +348,12 @@ for var_name in (bmi.get_input_var_names()[3:6:2]):
     # get_value_at_indices()    
     try: 
         dest0 = np.empty(bmi.get_grid_size(0), dtype=float)
-        print ("  get value at indices: " + str(bmi.get_value_at_indices(var_name, dest0, [0])))
+
+        # JMFrame NOTE: converting a list/array to a string probably won't work
+        #print ("  get value at indices: " + str(bmi.get_value_at_indices(var_name, dest0, [0])))
+        
+        print ("  get value at indices: ", bmi.get_value_at_indices(var_name, dest0, [0]))
+        
         if var_name_counter == 0: 
             pass_count += 1
     except: 

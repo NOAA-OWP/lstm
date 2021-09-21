@@ -35,7 +35,7 @@ for precip, temp in zip(list(sample_data['total_precipitation'][3].data),
     print('the streamflow (CFS) at time {} is {:.2f}'.format(model.get_current_time(), 
                                 model.get_value('land_surface_water__runoff_volume_flux')))
 
-    if model.t > 100:
+    if model.t > 10:
         print('stopping the loop')
         break
 
