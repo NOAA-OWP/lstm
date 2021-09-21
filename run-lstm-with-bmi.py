@@ -14,7 +14,7 @@ model = bmi_lstm.bmi_LSTM()
 
 # Initializing the BMI
 print('Initializing the BMI')
-model.initialize(bmi_cfg_file=Path('./bmi_config_files/01022500_A.yml'))
+model.initialize(bmi_cfg_file=Path('./bmi_config_files/01022500_hourly_all_attributes_forcings.yml'))
 
 # Get input data that matches the LSTM test runs
 print('Get input data that matches the LSTM test runs')
