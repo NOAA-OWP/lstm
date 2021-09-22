@@ -63,7 +63,8 @@ class bmi_LSTM(Bmi):
     #---------------------------------------------
     # Output variable names (CSDMS standard names)
     #---------------------------------------------
-    _output_var_names = ['land_surface_water__runoff_volume_flux']
+    _output_var_names = ['land_surface_water__runoff_depth', 
+                         'land_surface_water__runoff_volume_flux']
 
     #------------------------------------------------------
     # Create a Python dictionary that maps CSDMS Standard
@@ -74,6 +75,7 @@ class bmi_LSTM(Bmi):
     #_var_name_map_long_first = {
     _var_name_units_map = {
                                 'land_surface_water__runoff_volume_flux':['streamflow_cfs','ft3 s-1'],
+                                'land_surface_water__runoff_depth':['streamflow_mm','mm'],
                                 #--------------   Dynamic inputs --------------------------------
                                 'atmosphere_water__time_integral_of_precipitation_mass_flux':['total_precipitation','kg m-2'],
                                 'land_surface_radiation~incoming~longwave__energy_flux':['longwave_radiation','W m-2'],
@@ -94,14 +96,14 @@ class bmi_LSTM(Bmi):
                                 'bedrock__permeability':['geol_permeability','m2'],
                                 'land_vegetation__max_monthly_mean_of_green_vegetation_fraction':['gvf_max','-'],
                                 'land_vegetation__diff__max_min_monthly_mean_of_green_vegetation_fraction':['gvf_diff','-'],
-                                'atmospher_water__mean_duration_of_high_precipitation_events':['high_prec_dur','d'],
-                                'atmospher_water__frequency_of_high_precipitation_events':['high_prec_freq','d yr-1'],
+                                'atmosphere_water__mean_duration_of_high_precipitation_events':['high_prec_dur','d'],
+                                'atmosphere_water__frequency_of_high_precipitation_events':['high_prec_freq','d yr-1'],
                                 'land_vegetation__diff_max_min_monthly_mean_of_leaf-area_index':['lai_diff','-'],
                                 'land_vegetation__max_monthly_mean_of_leaf-area_index':['lai_max','-'],
                                 'atmosphere_water__low_precipitation_duration':['low_prec_dur','d'],
                                 'atmosphere_water__precipitation_frequency':['low_prec_freq','d yr-1'],
                                 'maximum_water_content':['max_water_content','m'],
-                                'atmospher_water__daily_mean_of_liquid_equivalent_precipitation_rate':['p_mean','mm d-1'],
+                                'atmosphere_water__daily_mean_of_liquid_equivalent_precipitation_rate':['p_mean','mm d-1'],
                                 'land_surface_water__daily_mean_of_potential_evaporation_flux':['pet_mean','mm d-1'],
                                 'basin__mean_of_slope':['slope_mean','m km-1'],
                                 'soil__saturated_hydraulic_conductivity':['soil_conductivity','cm hr-1'],
@@ -111,23 +113,6 @@ class bmi_LSTM(Bmi):
                                 'soil_sand__volume_fraction':['sand_frac','percent'],
                                 'soil_silt__volume_fraction':['silt_frac','percent']
                                  }
-
-    #------------------------------------------------------
-    # Create a Python dictionary that maps CSDMS Standard
-    # Names to the units of each model variable.
-    #------------------------------------------------------
-#    _var_units_map = {
-#        'land_surface_water__runoff_volume_flux':'mm',
-#        #--------------------------------------------------
-#         'land_surface_radiation~incoming~longwave__energy_flux':'W m-2',
-#         'land_surface_air__pressure':'Pa',
-#         'atmosphere_air_water~vapor__relative_saturation':'kg kg-1',
-#         'atmosphere_water__liquid_equivalent_precipitation_rate':'kg m-2',
-#         'land_surface_radiation~incoming~shortwave__energy_flux':'W m-2',
-#         'land_surface_air__temperature':'K',
-#         'land_surface_wind__x_component_of_velocity':'m s-1',
-#         'land_surface_wind__y_component_of_velocity':'m s-1'}
-
 
     #------------------------------------------------------
     # A list of static attributes. Not all these need to be used.
@@ -301,14 +286,19 @@ class bmi_LSTM(Bmi):
         
     #------------------------------------------------------------ 
     def scale_output(self):
+
         if self.cfg_train['target_variables'][0] == 'qobs_mm_per_hour':
             self.surface_runoff_mm = (self.lstm_output[0,0,0].numpy().tolist() * self.out_std + self.out_mean)
+
         elif self.cfg_train['target_variables'][0] == 'QObs(mm/d)':
             self.surface_runoff_mm = (self.lstm_output[0,0,0].numpy().tolist() * self.out_std + self.out_mean) * (1/24)
+            
+        self._values['land_surface_water__runoff_depth'] = self.surface_runoff_mm
+        setattr(self, 'land_surface_water__runoff_depth', self.surface_runoff_mm)
         self.streamflow_cms = self.surface_runoff_mm * self.output_factor_cms
 
         self._values['land_surface_water__runoff_volume_flux'] = self.streamflow_cms * (1/35.314)
-        self.land_surface_water__runoff_volume_flux = self.streamflow_cms * (1/35.314)
+        setattr(self, 'land_surface_water__runoff_volume_flux', self.streamflow_cms * (1/35.314))
 
     #-------------------------------------------------------------------
     def read_initial_states(self):
@@ -324,16 +314,18 @@ class bmi_LSTM(Bmi):
         for attribute in self._static_attributes_list:
             if attribute in self.cfg_train['static_attributes']:
                 
+                long_var_name = self._var_name_map_short_first[attribute]
+
                 # This is probably the better way to do it,
-                setattr(self, attribute, self.cfg_bmi[attribute])
+                setattr(self, long_var_name, self.cfg_bmi[attribute])
                 
                 # and this is just in case. _values dictionary is in the example
-                self._values[attribute] = self.cfg_bmi[attribute]
+                self._values[long_var_name] = self.cfg_bmi[attribute]
     
     #---------------------------------------------------------------------------- 
     def initialize_forcings(self):
         for forcing_name in self.cfg_train['dynamic_inputs']:
-            setattr(self, forcing_name, 0)
+            setattr(self, self._var_name_map_short_first[forcing_name], 0)
 
     #-------------------------------------------------------------------
     #-------------------------------------------------------------------
@@ -405,6 +397,9 @@ class bmi_LSTM(Bmi):
         """
         if getattr(self, var_name) != self._values[var_name]:
             print("WARNING: The variable ({}) stored in two locations is inconsistent".format(var_name))
+            print('getattr(self, var_name)', getattr(self, var_name))
+            print('self.surface_runoff_mm', self.surface_runoff_mm)
+            print('self._values[var_name]', self._values[var_name])
         
         return getattr(self, var_name)   # We don't need to store the variable in a dict and as attributes
 #        return self._values[var_name]   # Pick a place to store them and stick with it.

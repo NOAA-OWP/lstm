@@ -8,7 +8,7 @@ device: cpu
 dynamic_inputs:
 - total_precipitation
 - temperature
-epochs: 30
+epochs: 9
 experiment_name: hourly_slope_mean_precip_temp
 forcings: nldas_hourly
 head: regression
