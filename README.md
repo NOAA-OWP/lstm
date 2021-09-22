@@ -44,7 +44,23 @@ The Jupyter Notebook `run-lstm-with-bmi.ipynb` and a Python script `run-lstm-wit
 6. And finally you should finalize the model instance: `model.finalize()`
 
 # Model weights and biases
-The training procedure should produce weights and biases for the LSTM model. These are stored in Pytorch files (*.pt), are kept within the training directories: `trained_neuralhydrology_models`. Without these the model can still run, but will not make streamflow predictions. These are **absolutely** necessary for running this model with NextGen. These weights and biases are trained to represent many basins, so they do not change for every basin. The model may be trained regionally, or globally, and the weights and biases need to be consistent across the appropriate basins.
+The training procedure should produce weights and biases for the LSTM model. These are stored in Pytorch files (`*.pt`), are kept within the training directories: `trained_neuralhydrology_models`. Without these the model can still run, but will not make streamflow predictions. These are **absolutely** necessary for running this model with NextGen. These weights and biases are trained to represent many basins, so they do not change for every basin. The model may be trained regionally, or globally, and the weights and biases need to be consistent across the appropriate basins.
 
 # More information on training models with NeuralHydrology
 https://neuralhydrology.readthedocs.io/en/latest/index.html
+
+# Unit Test
+New BMI components introduced are categorized as follows,  
+- Model control functions (4)
+- Model information functions (5)
+- Variable information functions (6)
+- Time functions (5)
+- Variable getter and setter functions (5)
+- Model grid functions (16)
+
+The test script `./run_bmi_unit_test.py` fully examines the functionality of all applicable definitions.
+
+To run lstm-bmi unit test, simply call `python ./run_bmi_unit_test.py` within the active conda environment `bmi_lstm`, as oulined in [ Running the model](#running-the-model).
+
+Recall that BMI guides interoperability for model-coupling, where model components (i.e. inputs and outputs) are easily shared amongst each other.
+When testing outside of a true framework, we consider the behavior of BMI function definitions, rather than any expected values they produce. 
