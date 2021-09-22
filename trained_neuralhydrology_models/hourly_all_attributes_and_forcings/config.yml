@@ -14,7 +14,7 @@ dynamic_inputs:
 - temperature
 - wind_u
 - wind_v
-epochs: 5
+epochs: 1
 experiment_name: hourly_all_attributes_and_forcings
 forcings: nldas_hourly
 head: regression

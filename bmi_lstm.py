@@ -33,6 +33,7 @@ class bmi_LSTM(Bmi):
         self.streamflow_cms = 0.0
         self.streamflow_fms = 0.0
         self.surface_runoff_mm = 0.0
+
     #----------------------------------------------
     # Required, static attributes of the model
     #----------------------------------------------
@@ -628,6 +629,7 @@ class bmi_LSTM(Bmi):
         raise NotImplementedError("get_grid_spacing") 
 
     #------------------------------------------------------------ 
+    def get_grid_type(self, grid_id=0):
 
         # JG Edit
         # 0 is the only id we have        
@@ -636,6 +638,8 @@ class bmi_LSTM(Bmi):
 
     #------------------------------------------------------------ 
     def get_grid_x(self):
+        raise NotImplementedError("get_grid_x") 
+
     #------------------------------------------------------------ 
     def get_grid_y(self):
         raise NotImplementedError("get_grid_y") 
