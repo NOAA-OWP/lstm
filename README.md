@@ -15,7 +15,7 @@ for Four USGS gauges:
 * 03015500 Brokenstraw Creek at Youngsville, PA
 * 01022500 Narraguagus River at Cherryfield, Maine  
 
-These are just samples, you can run on any watershed.   
+These are just samples, you can run on any watershed, so long as you have the static attributes and appropriate forcings.   
 
 # Model configuration
 The LSTM model requires a configuration file for specification of forcings, weights, scalers, run options (like warmup period), run time period, static basin parameters and model time step. This configuration file needs to be generated for any specific application of the LSTM model.
@@ -23,10 +23,10 @@ This LSTM model will run on any basin with the required inputs. The place to set
 
 # Trained LSTM model
 Included in this directory are two samples of trained LSTM models:
-* hourly_A
-* hourly_B  
+* hourly_slope_mean_precip_temp
+* hourly_all_attributes_and_forcings  
 
-These two models are trained with slightly different inputs (Basin average slope is included in only one), and with different number of hidden layers.
+These two models are trained with different inputs, but they both will run with the same BMI and LSTM model (`bmi_lstm.py` & `nextgen_cuda_lstm.py`).
 
 # System requirements to run this model
 Running this model requires python and the libraries listed in the environment file: `environment.yml`.  

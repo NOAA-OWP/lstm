@@ -14,6 +14,7 @@ import yaml
 # LSTM here is based on PyTorch
 import torch
 from torch import nn
+import sys
 
 class bmi_LSTM(Bmi):
 
@@ -32,7 +33,7 @@ class bmi_LSTM(Bmi):
         self.streamflow_cms = 0.0
         self.streamflow_fms = 0.0
         self.surface_runoff_mm = 0.0
-        
+
     #----------------------------------------------
     # Required, static attributes of the model
     #----------------------------------------------
@@ -48,13 +49,12 @@ class bmi_LSTM(Bmi):
 
     #---------------------------------------------
     # Input variable names (CSDMS standard names)
-    # LWDOWN,PSFC,Q2D,RAINRATE,SWDOWN,T2D,U2D,V2D
     #---------------------------------------------
     _input_var_names = [
         'land_surface_radiation~incoming~longwave__energy_flux',
         'land_surface_air__pressure',
         'atmosphere_air_water~vapor__relative_saturation',
-        'atmosphere_water__liquid_equivalent_precipitation_rate',
+        'atmosphere_water__time_integral_of_precipitation_mass_flux',
         'land_surface_radiation~incoming~shortwave__energy_flux',
         'land_surface_air__temperature',
         'land_surface_wind__x_component_of_velocity',
@@ -63,7 +63,8 @@ class bmi_LSTM(Bmi):
     #---------------------------------------------
     # Output variable names (CSDMS standard names)
     #---------------------------------------------
-    _output_var_names = ['land_surface_water__runoff_volume_flux']
+    _output_var_names = ['land_surface_water__runoff_depth', 
+                         'land_surface_water__runoff_volume_flux']
 
     #------------------------------------------------------
     # Create a Python dictionary that maps CSDMS Standard
@@ -71,31 +72,62 @@ class bmi_LSTM(Bmi):
     # This is going to get long, 
     #     since the input variable names could come from any forcing...
     #------------------------------------------------------
-    _var_name_map_long_first = {'atmosphere_water__liquid_equivalent_precipitation_rate':'total_precipitation',
-                     'land_surface_air__temperature':'temperature',
-                     'basin__mean_of_elevation':'elev_mean',
-                     'basin__mean_of_slope':'slope_mean'}
-    _var_name_map_short_first = {'total_precipitation':'atmosphere_water__liquid_equivalent_precipitation_rate',
-                     'temperature':'land_surface_air__temperature',
-                     'elev_mean':'basin__mean_of_elevation',
-                     'slope_mean':'basin__mean_of_slope'}
+    #_var_name_map_long_first = {
+    _var_name_units_map = {
+                                'land_surface_water__runoff_volume_flux':['streamflow_cfs','ft3 s-1'],
+                                'land_surface_water__runoff_depth':['streamflow_mm','mm'],
+                                #--------------   Dynamic inputs --------------------------------
+                                'atmosphere_water__time_integral_of_precipitation_mass_flux':['total_precipitation','kg m-2'],
+                                'land_surface_radiation~incoming~longwave__energy_flux':['longwave_radiation','W m-2'],
+                                'land_surface_radiation~incoming~shortwave__energy_flux':['shortwave_radiation','W m-2'],
+                                'atmosphere_air_water~vapor__relative_saturation':['specific_humidity','kg kg-1'],
+                                'land_surface_air__pressure':['pressure','Pa'],
+                                'land_surface_air__temperature':['temperature','K'],
+                                'land_surface_wind__x_component_of_velocity':['wind_u','m s-1'],
+                                'land_surface_wind__y_component_of_velocity':['wind_v','m s-1'],
+                                #--------------   STATIC Attributes -----------------------------
+                                'basin__area':['area_gages2','km2'],
+                                'ratio__mean_potential_evapotranspiration__mean_precipitation':['aridity','-'],
+                                'basin__carbonate_rocks_area_fraction':['carbonate_rocks_frac','-'],
+                                'soil_clay__volume_fraction':['clay_frac','percent'],
+                                'basin__mean_of_elevation':['elev_mean','m'],
+                                'land_vegetation__forest_area_fraction':['frac_forest','-'],
+                                'atmosphere_water__precipitation_falling_as_snow_fraction':['frac_snow','-'],
+                                'bedrock__permeability':['geol_permeability','m2'],
+                                'land_vegetation__max_monthly_mean_of_green_vegetation_fraction':['gvf_max','-'],
+                                'land_vegetation__diff__max_min_monthly_mean_of_green_vegetation_fraction':['gvf_diff','-'],
+                                'atmosphere_water__mean_duration_of_high_precipitation_events':['high_prec_dur','d'],
+                                'atmosphere_water__frequency_of_high_precipitation_events':['high_prec_freq','d yr-1'],
+                                'land_vegetation__diff_max_min_monthly_mean_of_leaf-area_index':['lai_diff','-'],
+                                'land_vegetation__max_monthly_mean_of_leaf-area_index':['lai_max','-'],
+                                'atmosphere_water__low_precipitation_duration':['low_prec_dur','d'],
+                                'atmosphere_water__precipitation_frequency':['low_prec_freq','d yr-1'],
+                                'maximum_water_content':['max_water_content','m'],
+                                'atmosphere_water__daily_mean_of_liquid_equivalent_precipitation_rate':['p_mean','mm d-1'],
+                                'land_surface_water__daily_mean_of_potential_evaporation_flux':['pet_mean','mm d-1'],
+                                'basin__mean_of_slope':['slope_mean','m km-1'],
+                                'soil__saturated_hydraulic_conductivity':['soil_conductivity','cm hr-1'],
+                                'soil_bedrock_top__depth__pelletier':['soil_depth_pelletier','m'],
+                                'soil_bedrock_top__depth__statsgo':['soil_depth_statsgo','m'],
+                                'soil__porosity':['soil_porosity','-'],
+                                'soil_sand__volume_fraction':['sand_frac','percent'],
+                                'soil_silt__volume_fraction':['silt_frac','percent']
+                                 }
 
     #------------------------------------------------------
-    # Create a Python dictionary that maps CSDMS Standard
-    # Names to the units of each model variable.
-    #-------------------------_var_name_map_long_first-----------------------------
-    _var_units_map = {
-        'land_surface_water__runoff_volume_flux':'mm',
-        #--------------------------------------------------
-         'land_surface_radiation~incoming~longwave__energy_flux':'W m-2',
-         'land_surface_air__pressure':'Pa',
-         'atmosphere_air_water~vapor__relative_saturation':'kg kg-1',
-         'atmosphere_water__liquid_equivalent_precipitation_rate':'kg m-2',
-         'land_surface_radiation~incoming~shortwave__energy_flux':'W m-2',
-         'land_surface_air__temperature':'K',
-         'land_surface_wind__x_component_of_velocity':'m s-1',
-         'land_surface_wind__y_component_of_velocity':'m s-1'}
-
+    # A list of static attributes. Not all these need to be used.
+    #------------------------------------------------------
+    #   These attributes can be anaything, but usually come from the CAMELS attributes:
+    #   Nans Addor Andrew J. Newman, Naoki Mizukami, and Martyn P. Clark
+    #   The CAMELS data set: catchment attributes and meteorology for large-sample studies
+    #   https://doi.org/10.5194/hess-21-5293-2017
+    _static_attributes_list = ['area_gages2','aridity','carbonate_rocks_frac','clay_frac',
+                               'elev_mean','frac_forest','frac_snow','geol_permeability',
+                               'gvf_max','gvf_diff','high_prec_dur','high_prec_freq','lai_diff',
+                               'lai_max','low_prec_dur','low_prec_freq','max_water_content',
+                               'p_mean','pet_mean','slope_mean','soil_conductivity',
+                               'soil_depth_pelletier','soil_depth_statsgo','soil_porosity',
+                               'sand_frac','silt_frac']
 
     #------------------------------------------------------------
     #------------------------------------------------------------
@@ -105,6 +137,19 @@ class bmi_LSTM(Bmi):
 
     #-------------------------------------------------------------------
     def initialize( self, bmi_cfg_file=None ):
+
+        # ----- Create some lookup tabels from the long variable names --------#
+        self._var_name_map_long_first = {long_name:self._var_name_units_map[long_name][0] for long_name in self._var_name_units_map.keys()}
+        self._var_name_map_short_first = {self._var_name_units_map[long_name][0]:long_name for long_name in self._var_name_units_map.keys()}
+        self._var_units_map = {long_name:self._var_name_units_map[long_name][1] for long_name in self._var_name_units_map.keys()}
+        
+        # -------------- Initalize all the variables --------------------------# 
+        # -------------- so that they'll be picked up with the get functions --#
+        for var_name in list(self._var_name_units_map.keys()):
+            # ---------- All the variables are single values ------------------#
+            # ---------- so just set to zero for now.        ------------------#
+            self._values[var_name] = 0
+            setattr( self, var_name, 0 )
         
         # -------------- Read in the BMI configuration -------------------------#
         # This will direct all the next moves.
@@ -115,7 +160,7 @@ class bmi_LSTM(Bmi):
             self.cfg_bmi = self._parse_config(cfg)
         else:
             print("Error: No configuration provided, nothing to do...")
-    
+        
         # ------------- Load in the configuration file for the specific LSTM --#
         # This will include all the details about how the model was trained
         # Inputs, outputs, hyper-parameters, scalers, weights, etc. etc.
@@ -148,7 +193,6 @@ class bmi_LSTM(Bmi):
         # ------------- Initialize the values for the input to the LSTM  -----#
         self.set_static_attributes()
         self.initialize_forcings()
-        self.set_values_dictionary()
         
         if self.cfg_bmi['initial_state'] == 'zero':
             self.h_t = torch.zeros(1, self.batch_size, self.hidden_layer_size).float()
@@ -207,7 +251,6 @@ class bmi_LSTM(Bmi):
         self.all_lstm_inputs = []
         self.all_lstm_inputs.extend(self.cfg_train['dynamic_inputs'])
         self.all_lstm_inputs.extend(self.cfg_train['static_attributes'])
-        self.all_lstm_input_values_dict = {x:0 for x in self.all_lstm_inputs} # sometimes we need to reference values with strings
         
         # Scaler data from the training set. This is used to normalize the data (input and output).
         with open(self.cfg_train['run_dir'] / 'train_data' / 'train_data_scaler.p', 'rb') as fb:
@@ -233,19 +276,29 @@ class bmi_LSTM(Bmi):
 
     #------------------------------------------------------------ 
     def create_scaled_input_tensor(self):
-        self.set_values_dictionary()
+        
+        # TODO: Choose to store values in dictionary or not.
+        self.input_array = np.array([getattr(self, self._var_name_map_short_first[x]) for x in self.all_lstm_inputs])
         self.input_array = np.array([self._values[self._var_name_map_short_first[x]] for x in self.all_lstm_inputs])
+        
         self.input_array_scaled = (self.input_array - self.input_mean) / self.input_std 
         self.input_tensor = torch.tensor(self.input_array_scaled)
         
     #------------------------------------------------------------ 
     def scale_output(self):
+
         if self.cfg_train['target_variables'][0] == 'qobs_mm_per_hour':
             self.surface_runoff_mm = (self.lstm_output[0,0,0].numpy().tolist() * self.out_std + self.out_mean)
+
         elif self.cfg_train['target_variables'][0] == 'QObs(mm/d)':
             self.surface_runoff_mm = (self.lstm_output[0,0,0].numpy().tolist() * self.out_std + self.out_mean) * (1/24)
+            
+        self._values['land_surface_water__runoff_depth'] = self.surface_runoff_mm
+        setattr(self, 'land_surface_water__runoff_depth', self.surface_runoff_mm)
         self.streamflow_cms = self.surface_runoff_mm * self.output_factor_cms
-        self.streamflow_cfs = self.streamflow_cms * (1/35.314)
+
+        self._values['land_surface_water__runoff_volume_flux'] = self.streamflow_cms * (1/35.314)
+        setattr(self, 'land_surface_water__runoff_volume_flux', self.streamflow_cms * (1/35.314))
 
     #-------------------------------------------------------------------
     def read_initial_states(self):
@@ -256,32 +309,23 @@ class bmi_LSTM(Bmi):
 
     #---------------------------------------------------------------------------- 
     def set_static_attributes(self):
-        #------------------------------------------------------------ 
-        if 'elev_mean' in self.cfg_train['static_attributes']:
-            self.elev_mean = self.cfg_bmi['elev_mean']
-            self.all_lstm_input_values_dict['elev_mean'] = self.cfg_bmi['elev_mean']
-        #------------------------------------------------------------ 
-        if 'slope_mean' in self.cfg_train['static_attributes']:
-            self.slope_mean = self.cfg_bmi['slope_mean']
-            self.all_lstm_input_values_dict['slope_mean'] = self.cfg_bmi['slope_mean']
-        #------------------------------------------------------------ 
+        """ Get the static attributes from the configuration file
+        """
+        for attribute in self._static_attributes_list:
+            if attribute in self.cfg_train['static_attributes']:
+                
+                long_var_name = self._var_name_map_short_first[attribute]
+
+                # This is probably the better way to do it,
+                setattr(self, long_var_name, self.cfg_bmi[attribute])
+                
+                # and this is just in case. _values dictionary is in the example
+                self._values[long_var_name] = self.cfg_bmi[attribute]
     
     #---------------------------------------------------------------------------- 
     def initialize_forcings(self):
-        #------------------------------------------------------------ 
-        if 'total_precipitation' in self.cfg_train['dynamic_inputs']:
-            self.total_precipitation = 0
-        #------------------------------------------------------------ 
-        if 'temperature' in self.cfg_train['dynamic_inputs']:
-            self.temperature = 0
-
-    #------------------------------------------------------------ 
-    def set_values_dictionary(self):
-        #self._values = {'atmosphere_water__liquid_equivalent_precipitation_rate':self.total_precipitation,
-        #                'land_surface_air__temperature':self.temperature,
-        #                'basin__mean_of_elevation':self.elev_mean,
-        #                'basin__mean_of_slope':self.slope_mean}
-        self._values = {self._var_name_map_short_first[x]:self.all_lstm_input_values_dict[x] for x in self.all_lstm_inputs}
+        for forcing_name in self.cfg_train['dynamic_inputs']:
+            setattr(self, self._var_name_map_short_first[forcing_name], 0)
 
     #-------------------------------------------------------------------
     #-------------------------------------------------------------------
@@ -323,6 +367,43 @@ class bmi_LSTM(Bmi):
         """Get names of output variables."""
         return len(self._output_var_names)
 
+    #------------------------------------------------------------ 
+    def get_value(self, var_name):
+        """Copy of values.
+        Parameters
+        ----------
+        var_name : str
+            Name of variable as CSDMS Standard Name.
+        dest : ndarray
+            A numpy array into which to place the values.
+        Returns
+        -------
+        array_like
+            Copy of values.
+        """
+        return self.get_value_ptr(var_name)
+
+    #-------------------------------------------------------------------
+    def get_value_ptr(self, var_name):
+        """Reference to values.
+        Parameters
+        ----------
+        var_name : str
+            Name of variable as CSDMS Standard Name.
+        Returns
+        -------
+        array_like
+            Value array.
+        """
+        if getattr(self, var_name) != self._values[var_name]:
+            print("WARNING: The variable ({}) stored in two locations is inconsistent".format(var_name))
+            print('getattr(self, var_name)', getattr(self, var_name))
+            print('self.surface_runoff_mm', self.surface_runoff_mm)
+            print('self._values[var_name]', self._values[var_name])
+        
+        return getattr(self, var_name)   # We don't need to store the variable in a dict and as attributes
+#        return self._values[var_name]   # Pick a place to store them and stick with it.
+
     #-------------------------------------------------------------------
     #-------------------------------------------------------------------
     # BMI: Variable Information Functions
@@ -352,8 +433,8 @@ class bmi_LSTM(Bmi):
             Data type.
         """
         # JG Edit
-        return str(self.get_value_ptr(long_var_name).dtype)
-
+        return self.get_value_ptr(long_var_name)  #.dtype
+    
     #------------------------------------------------------------ 
     def get_var_grid(self, name):
         
@@ -364,7 +445,8 @@ class bmi_LSTM(Bmi):
 
     #------------------------------------------------------------ 
     def get_var_itemsize(self, name):
-        return np.dtype(self.get_var_type(name)).itemsize
+#        return np.dtype(self.get_var_type(name)).itemsize
+        return np.array(self.get_value(name)).itemsize
 
     #------------------------------------------------------------ 
     def get_var_location(self, name):
@@ -374,29 +456,12 @@ class bmi_LSTM(Bmi):
         if name in (self._output_var_names + self._input_var_names):
             return self._var_loc
 
-    #------------------------------------------------------------ 
-    def get_var_nbytes(self, var_name):
-        """Get units of variable.
-        Parameters
-        ----------
-        var_name : str
-            Name of variable as CSDMS Standard Name.
-        Returns
-        -------
-        int
-            Size of data array in bytes.
-        """
-        return self.get_value_ptr(var_name).nbytes            
     #-------------------------------------------------------------------
     # JG Note: what is this used for?
     def get_var_rank(self, long_var_name):
 
         return np.int16(0)
 
-    #-------------------------------------------------------------------
-    #-------------------------------------------------------------------
-    # BMI: Time Functions
-    #-------------------------------------------------------------------
     #-------------------------------------------------------------------
     def get_start_time( self ):
     
@@ -424,53 +489,62 @@ class bmi_LSTM(Bmi):
         return self.get_attribute( 'time_units' ) 
        
     #-------------------------------------------------------------------
-    #-------------------------------------------------------------------
-    # BMI: Variable Getter and Setter Functions
-    #-------------------------------------------------------------------
-    #-------------------------------------------------------------------
-    #def get_value(self, var_name, dest):
-    def get_value(self, var_name):
-        """Copy of values.
+    def set_value(self, var_name, value):
+        """Set model values.
+
         Parameters
         ----------
         var_name : str
             Name of variable as CSDMS Standard Name.
-        dest : ndarray
-            A numpy array into which to place the values.
-        Returns
-        -------
-        array_like
-            Copy of values.
-        """
-        #dest[:] = self.get_value_ptr(var_name).flatten()
-        #return dest
-        return self.get_value_ptr(var_name) #JG Edit
+        src : array_like
+              Array of new values.
+        """ 
+        setattr( self, var_name, value )
 
-    #-------------------------------------------------------------------
-    def get_value_ptr(self, var_name):
-        """Reference to values.
+        # jmframe: this next line is basically a duplicate. 
+        # I guess we should stick with the attribute names instead of a dictionary approach. 
+        self._values[var_name] = value
+
+    #------------------------------------------------------------ 
+    def set_value_at_indices(self, name, inds, src):
+        """Set model values at particular indices.
+        Parameters
+        ----------
+        var_name : str
+            Name of variable as CSDMS Standard Name.
+        src : array_like
+            Array of new values.
+        indices : array_like
+            Array of indices.
+        """
+        # JG Note: TODO confirm this is correct. Get/set values ~=
+#        val = self.get_value_ptr(name)
+#        val.flat[inds] = src
+
+        #JMFrame: chances are that the index will be zero, so let's include that logic
+        if np.array(self.get_value(name)).flatten().shape[0] == 1:
+            self.set_value(name, src)
+        else:
+            # JMFrame: Need to set the value with the updated array with new index value
+            val = self.get_value_ptr(name)
+            for i in inds.shape:
+                val.flatten()[inds[i]] = src[i]
+            self.set_value(name, val)
+
+    #------------------------------------------------------------ 
+    def get_var_nbytes(self, var_name):
+        """Get units of variable.
         Parameters
         ----------
         var_name : str
             Name of variable as CSDMS Standard Name.
         Returns
         -------
-        array_like
-            Value array.
+        int
+            Size of data array in bytes.
         """
-
-        # JG Edit Note: This should be revisted, more of a band-aid rn
-
-        # if input variable, get correct name
-        # note that output varible(s) not include in this
-        try:
-            var_name = self.get_var_name( var_name )
-        except: 
-            # otherise add output to values_dict
-            # JG Note: confirm rhs w jmframe
-            self.all_lstm_input_values_dict['land_surface_water__runoff_volume_flux'] = self.streamflow_cms
-
-        return self.all_lstm_input_values_dict[var_name]
+        # JMFrame NOTE: Had to import sys for this function
+        return sys.getsizeof(self.get_value_ptr(var_name))
 
     #------------------------------------------------------------ 
     def get_value_at_indices(self, var_name, dest, indices):
@@ -488,80 +562,12 @@ class bmi_LSTM(Bmi):
         array_like
             Values at indices.
         """
-        dest[:] = self.get_value_ptr(var_name).take(indices)
-        return dest
-
-    def set_value(self, long_var_name, value):
-        """Set model values.
-
-        Parameters
-        ----------
-        var_name : str
-            Name of variable as CSDMS Standard Name.
-        src : array_like
-              Array of new values.
-        """
-
-        # JG Edit Adding try/except for output var
-        # JG Note: This should be revisted, more of a band-aid rn    
-        # if input variable, get correct name
-        # note that output varible(s) not include in this
-        try:
-            var_name = self.get_var_name( long_var_name )
-            setattr( self, var_name, value )
-        except: 
-            # otherise add output to values_dict
-            # JG Note: confirm rhs w jmframe
-            self.all_lstm_input_values_dict['land_surface_water__runoff_volume_flux'] = self.streamflow_cms
-
-        # jmframe: this next line is basically a duplicate. 
-        # I guess we should stick with the attribute names instead of a dictionary approach. 
-        self.all_lstm_input_values_dict[var_name] = value
-
-    #------------------------------------------------------------ 
-    def set_value_at_indices(self, name, inds, src):
-        """Set model values at particular indices.
-        Parameters
-        ----------
-        var_name : str
-            Name of variable as CSDMS Standard Name.
-        src : array_like
-            Array of new values.
-        indices : array_like
-            Array of indices.
-        """
-        # JG Note: TODO confirm this is correct. Get/set values ~=
-
-        val = self.get_value_ptr(name)
-        val.flat[inds] = src
-
-    #-------------------------------------------------------------------
-    #-------------------------------------------------------------------
-    # BMI: Model Grid Functions
-    #-------------------------------------------------------------------
-    #-------------------------------------------------------------------
-    def get_grid_rank(self, grid_id):
-        
-        # JG Edit
-        # 0 is the only id we have
-        if grid_id == 0: 
-            return 1
-
-    #------------------------------------------------------------ 
-    def get_grid_type(self, grid_id):
-
-        # JG Edit
-        # 0 is the only id we have        
-        if grid_id == 0:
-            return 'scalar'
-
-    #------------------------------------------------------------ 
-    def get_grid_size(self, grid_id):
-       
-        # JG Edit
-        # 0 is the only id we have
-        if grid_id == 0:
-            return 1
+        #JMFrame: chances are that the index will be zero, so let's include that logic
+        if np.array(self.get_value(var_name)).flatten().shape[0] == 1:
+            return self.get_value(var_name)
+        else:
+            val_array = self.get_value(var_name).flatten()
+            return np.array([val_array[i] for i in indices])
 
     # JG Note: remaining grid funcs do not apply for type 'scalar'
     #   Yet all functions in the BMI must be implemented 
@@ -585,26 +591,50 @@ class bmi_LSTM(Bmi):
     #------------------------------------------------------------ 
     def get_grid_face_nodes(self, grid, face_nodes):
         raise NotImplementedError("get_grid_face_nodes")
-
-    #------------------------------------------------------------     
+    
+    #------------------------------------------------------------ 
     def get_grid_node_count(self, grid):
         raise NotImplementedError("get_grid_node_count")
 
     #------------------------------------------------------------ 
     def get_grid_nodes_per_face(self, grid, nodes_per_face):
         raise NotImplementedError("get_grid_nodes_per_face") 
-
-    #------------------------------------------------------------     
+    
+    #------------------------------------------------------------ 
     def get_grid_origin(self, grid_id, origin):
         raise NotImplementedError("get_grid_origin") 
+
+    #------------------------------------------------------------ 
+    def get_grid_rank(self, grid_id):
+ 
+        # JG Edit
+        # 0 is the only id we have
+        if grid_id == 0: 
+            return 1
 
     #------------------------------------------------------------ 
     def get_grid_shape(self, grid_id, shape):
         raise NotImplementedError("get_grid_shape") 
 
     #------------------------------------------------------------ 
+    def get_grid_size(self, grid_id):
+       
+        # JG Edit
+        # 0 is the only id we have
+        if grid_id == 0:
+            return 1
+
+    #------------------------------------------------------------ 
     def get_grid_spacing(self, grid_id, spacing):
         raise NotImplementedError("get_grid_spacing") 
+
+    #------------------------------------------------------------ 
+    def get_grid_type(self, grid_id=0):
+
+        # JG Edit
+        # 0 is the only id we have        
+        if grid_id == 0:
+            return 'scalar'
 
     #------------------------------------------------------------ 
     def get_grid_x(self):
@@ -619,7 +649,11 @@ class bmi_LSTM(Bmi):
         raise NotImplementedError("get_grid_z") 
 
 
+    #------------------------------------------------------------ 
+    #------------------------------------------------------------ 
     #-- Random utility functions
+    #------------------------------------------------------------ 
+    #------------------------------------------------------------ 
 
     def _parse_config(self, cfg):
         for key, val in cfg.items():
