@@ -111,7 +111,9 @@ class bmi_LSTM(Bmi):
                                 'soil_bedrock_top__depth__statsgo':['soil_depth_statsgo','m'],
                                 'soil__porosity':['soil_porosity','-'],
                                 'soil_sand__volume_fraction':['sand_frac','percent'],
-                                'soil_silt__volume_fraction':['silt_frac','percent']
+                                'soil_silt__volume_fraction':['silt_frac','percent'], 
+                                'basin_centroid__latitude':['gauge_lat', 'degrees'],
+                                'basin_centroid__longitude':['gauge_lon', 'degrees']
                                  }
 
     #------------------------------------------------------
@@ -127,7 +129,7 @@ class bmi_LSTM(Bmi):
                                'lai_max','low_prec_dur','low_prec_freq','max_water_content',
                                'p_mean','pet_mean','slope_mean','soil_conductivity',
                                'soil_depth_pelletier','soil_depth_statsgo','soil_porosity',
-                               'sand_frac','silt_frac']
+                               'sand_frac','silt_frac', 'gauge_lat', 'gauge_lon']
 
     #------------------------------------------------------------
     #------------------------------------------------------------
