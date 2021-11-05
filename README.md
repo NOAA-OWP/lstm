@@ -1,5 +1,5 @@
 # Basic Model Interface (BMI) for streamflow prediction using Long Short-Term Memory (LSTM) networks
-This Long Short-Term Memory (LSTM) network was developed for use in the [Next Generation National Water Model (Nextgen)](https://github.com/NOAA-OWP/ngen). LSTMs are able to provide relatively accurate streamflow predictions when compared to other model types. This module is available through a [Basic Model Interface (BMI)](https://bmi.readthedocs.io/en/latest/) interface that is built directly into the deep learning model class. That means this LSTM is inherently BMI enabled.  
+This Long Short-Term Memory (LSTM) network was developed for use in the [Next Generation National Water Model (Nextgen)](https://github.com/NOAA-OWP/ngen). LSTMs are able to provide relatively accurate streamflow predictions when compared to other model types. This module is available through a [Basic Model Interface (BMI)](https://bmi.readthedocs.io/en/latest/).  
 
 # Adaption from NeuralHydrology
 This module is dependent on a trained deep learning model. The forward pass of this LSTM model (`nextgen_cuda_lstm.py`) is based on that of CudaLSTM in NeuralHydrology, but in principle can be used with any LSTM, so long as the `bmi_lstm.py` loads it in.  
@@ -48,7 +48,7 @@ Running these examples of trained LSTM-based hydrological models require these g
 1.  Retrieve atmospheric forcing data that match those included in the trained model,
 2.  Retrieve the catchment attributes that match those included in the trained model,
 3.  Create a configuration file with the key-value pairs that can be used by the BMI,
-4.  Run a script with the Python commands for the BMI model control functions (examples below).  
+4.  Run a script with the Python commands for the BMI model control functions (examples below).   
 The Jupyter Notebook `run-lstm-with-bmi.ipynb` and a Python script `run-lstm-with-bmi.py` have an example of running the LSTM with BMI model control functions, which are summarized here:    
 
 0. `conda activate bmi_lstm`
