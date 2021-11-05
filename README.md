@@ -50,6 +50,7 @@ Running these examples of trained LSTM-based hydrological models require these g
 3.  Create a configuration file with the key-value pairs that can be used by the BMI,
 4.  Run a script with the Python commands for the BMI model control functions (examples below).  
 The Jupyter Notebook `run-lstm-with-bmi.ipynb` and a Python script `run-lstm-with-bmi.py` have an example of running the LSTM with BMI model control functions, which are summarized here:    
+
 0. `conda activate bmi_lstm`
 1. Import required libraries (e.g., `import torch`)
 2. Load in the model from the BMI file: `model = lstm.bmi_LSTM()`
