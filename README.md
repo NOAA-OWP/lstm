@@ -1,13 +1,14 @@
 # Basic Model Interface (BMI) for streamflow prediction using Long Short-Term Memory (LSTM) networks
-This LSTM is for use in the Next Generation National Water Model. LSTMs have been shown to be very good deep learning models for streamflow prediction. This module is available through a BMI interface that is built directly into the deep learning model class. That means this LSTM is inherently BMI enabled.  
+This Long Short-Term Memory (LSTM) network was developed for use in the [Next Generation National Water Model (Nextgen)](https://github.com/NOAA-OWP/ngen). LSTMs are able to provide relatively accurate streamflow predictions when compared to other model types. This module is available through a [Basic Model Interface (BMI)](https://bmi.readthedocs.io/en/latest/).  
 
 # Adaption from NeuralHydrology
 This module is dependent on a trained deep learning model. The forward pass of this LSTM model (`nextgen_cuda_lstm.py`) is based on that of CudaLSTM in NeuralHydrology, but in principle can be used with any LSTM, so long as the `bmi_lstm.py` loads it in.  
 
 # Data requirements
 All data required for a test run of this model is available in `./data/sample_data/usgs-streamflow-nldas_hourly.nc`. This includes:
-* Forcing data
-* Observation values  
+* Forcing data (examples found in `./data/usgs-streamflow-nldas_hourly.nc`)
+* Observation values (examples included in `./data/usgs-streamflow-nldas_hourly.nc`)
+* Static Attributes (see example configuration files for a list of these attributes: [`./bmi_config_files`](https://github.com/NOAA-OWP/lstm/blob/master/bmi_config_files/01022500_hourly_all_attributes_forcings.yml))  
 
 for Four USGS gauges:
 * 02064000 Falling River nr Naruna, VA
@@ -15,42 +16,66 @@ for Four USGS gauges:
 * 03015500 Brokenstraw Creek at Youngsville, PA
 * 01022500 Narraguagus River at Cherryfield, Maine  
 
-These are just samples, you can run on any watershed, so long as you have the static attributes and appropriate forcings.   
+These data are examples. You can run the LSTM model on any watershed, so long as you have the static attributes and appropriate forcings.  The list of attributes differs depending on the trained LSTM model chosen.  Example files (`\*.yml`) with the required attributes are located in the `./bmi_config_files` directory. The attributes required for these configuration files can be found in the `./data/camels_attributes_v2.0` directory for catchments in the CAMELS dataset or estimated from Addor et al. (2017).  
+
+[Addor, N., A.J. Newman, N. Mizukami, and M.P. Clark. 2017. The CAMELS data set: catchment attributes and meteorology for large-sample studies. Hydrol. Earth Syst. Sci. 21: 5293-5313. https://doi.org/10.5194/hess-21-5293-2017](https://doi.org/10.5194/hess-21-5293-2017)
+   
 
 # Model configuration
 The LSTM model requires a configuration file for specification of forcings, weights, scalers, run options (like warmup period), run time period, static basin parameters and model time step. This configuration file needs to be generated for any specific application of the LSTM model.
-This LSTM model will run on any basin with the required inputs. The place to set up the run for a specific configuration for a specific basin is in the BMI configuration file: `./bmi_config_files/*.yml`.
+This LSTM model will run on any basin with the required inputs; however, it was trained on 500+ catchments from the CAMELS dataset [CAMELS dataset](https://ral.ucar.edu/solutions/products/camels) across the contiguous United States (CONUS) and is best suited to this CONUS region, for now. The place to set up the run for a specific configuration for a specific basin is in the BMI configuration file: `./bmi_config_files/\*.yml`. Ideally the LSTM trained with all forcings and all static attributes will be used, but we've included a few example LSTMs that have limited static attributes and forcings, in the event that the total set of forcings and attributes are not available. For explainations of how the LSTM might perform with limited inputs and on ungauged basins, see Kratzert et al. 2019. To set up a specific configuration for a specific basin, change the appropriate BMI configuration file: `./bmi_config_files/\*.yml`.  For more detail, see the tutorial in the Wiki.
+
+[Frederik Kratzert et al., Toward Improved Predictions in Ungauged Basins: Exploiting the Power of Machine Learning, Water Resources Research](https://doi.org/10.1029/2019WR026065)  
 
 # Trained LSTM model
-Included in this directory are two samples of trained LSTM models:
-* hourly_slope_mean_precip_temp
-* hourly_all_attributes_and_forcings  
+Included in this directory are three samples of trained LSTM models:
+* `hourly_all_attributes_and_forcings`: This is the model that should be used. It was trained to ingest 8 atmospheric forcings and 26 static attributes, that were chosen from the [CAMELS dataset](https://ral.ucar.edu/solutions/products/camels). If you do not have access to all these static attributes, one of the models below are available with limited static attributes, but in general would be best to use all data possible.  
+* `hourly_slope_mean_precip_temp`: This model was trained to ingest only two atmospheric forcings (total precipitation and temperature) and two static attributes (basin mean slope and elevation).  
+* `hourly_all_forcings_lat_lon_elev`: This model was trained to ingest eight atmospheric forcings (total precipitation, longwave radiation, shortwave radiation, pressure, specific humidity, temperature, wind in the X and Y directions) and three static attributes (basin mean elevation, latitude and logitude).  
 
-These two models are trained with different inputs, but they both will run with the same BMI and LSTM model (`bmi_lstm.py` & `nextgen_cuda_lstm.py`).
+These three models are trained with different inputs, but they both will run with the same BMI and LSTM model (`bmi_lstm.py` & `nextgen_cuda_lstm.py`).
 
 # System requirements to run this model
-Running this model requires python and the libraries listed in the environment file: `environment.yml`.  
-If you can load in the environments without Anaconda, that should be just fine. Notice that `xarray` has a specific version defined in the environment file (0.14.0). The newer versions are incompatible withe the example files, for some reason that will be fixed at some point, so for now, make sure to use this specific version of Xarray.  
-It may be easiest to make sure a python environment containing pytorch, and the others listed above, are installed and activated with Anaconda using: `conda env create -f environment.yml`. This gives you a conda environment called `bmi_lstm`.  
+Running this model requires python and the libraries listed in the environment file: `environment.yml`. This example uses [Anaconda](https://www.anaconda.com), but it isn’t a requirement.  You can opt to set up a python environment without it by using the libraries specified in the environment.yml file.    
+This example uses Anaconda (website), but it isn’t a requirement.  You can opt to set up a python environment without it by using the libraries specified in the environment.yml file. Notice that `xarray` has a specific version defined in the environment file (0.14.0). The newer versions are incompatible with the current example files, for some reason that will be fixed at some point, so for now, make sure to use this specific version of Xarray.  
+If you have Anaconda, you can easily create an environment (bmi_lstm) with the required libraries using:  `conda env create -f environment.yml`. This gives you a conda environment called `bmi_lstm`.  
 
 # Running the model
-The Jupyter Notebook `run-lstm-with-bmi.ipynb` and a Python script `run-lstm-with-bmi.py` have an example of running the model. The basic steps are:
+This section goes through an example of running the LSTM with the BMI interface. These are only examples. If a user wants to run the LSTM with BMI, then these are a jumping off point. These examples were developed to provide a quick testing ground for running the LSTM with the [Nextgen framework](https://github.com/NOAA-OWP/ngen).  
+Note that this code assumes the use of the `bmi_lstm` environment for Anaconda. To create this environment enter `conda env create -f environment.yml` into the command window. To load this environment, enter `conda activate bmi_lstm`.   
+Be aware that these scripts are examples and may require changes for your use case. For example, the Python script was developed for the trained LSTM model with limited attributes (`hourly_slope_mean_precip_temp`) and the for loop will need to be changed if running with the LSTM model that was trained with all attributes (an example of this code can be found in the Jupyter Notebook).
+Running these examples of trained LSTM-based hydrological models require these general steps:  
+1.  Retrieve atmospheric forcing data that match those included in the trained model,
+2.  Retrieve the catchment attributes that match those included in the trained model,
+3.  Create a configuration file with the key-value pairs that can be used by the BMI,
+4.  Run a script with the Python commands for the BMI model control functions (examples below).   
+The Jupyter Notebook `run-lstm-with-bmi.ipynb` and a Python script `run-lstm-with-bmi.py` have an example of running the LSTM with BMI model control functions, which are summarized here:    
+
 0. `conda activate bmi_lstm`
 1. Import required libraries (e.g., `import torch`)
 2. Load in the model from the BMI file: `model = lstm.bmi_LSTM()`
 3. Read in the configuration file, and this includes the model weights, etc.: `model.read_cfg_file()`
 4. Now start running the BMI functions, starting with initialize: `model.initialize()`
 5. The model is now available to run either one timestep at a time: `model.update()`, or many timesteps at a time: `model.update_until(model.iend)`, where model.iend is the end of the forcing file, but this can be any value less than or equal to the end of the forcing file.
-6. And finally you should finalize the model instance: `model.finalize()`
+6. And finally you should finalize the model instance: `model.finalize()`  
+This repository contains an example file with weather and observed streamflow data for four catchments (`./data/usgs-streamflow-nldas_hourly.nc`).  Note that the observed streamflow data isn’t necessary to run the model, but is useful for comparison purposes.
+Also contained within this repository are catchment attributes for all CAMELS catchments along with two example configuration files: one for the limited data case and one for the full set of attributes.   
+
+To run the LSTM model for another catchment, slight modifications to this code will be needed:
+1.  The configuration file path when setting the `model.initialize(bmi_cfg_file='./path/to/your/config/file.yml')` function  
+2.  Streamflow and weather data path when defining `sample_data`. The formate of these data files will probably change. So some care will need to go into reading the data from the files. These example shown here is stored in a NetCDF file, but the user is free to store and read the data for their use case however they please.  
+3.  Check how the streamflow and weather variables are defined/passed into the model as there could be variations in headers, etc. in your data file – These are defined in a for loop.  
+For more information, see the tutorials located in the Wiki.  
+
 
 # Model weights and biases
-The training procedure should produce weights and biases for the LSTM model. These are stored in Pytorch files (`*.pt`), are kept within the training directories: `trained_neuralhydrology_models`. Without these the model can still run, but will not make streamflow predictions. These are **absolutely** necessary for running this model with NextGen. These weights and biases are trained to represent many basins, so they do not change for every basin. The model may be trained regionally, or globally, and the weights and biases need to be consistent across the appropriate basins.
+The training procedure should produce weights and biases for the LSTM model. These are stored in Pytorch files (`*.pt`), are kept within the training directories: `trained_neuralhydrology_models`. Without these the model can still run, but will not make streamflow predictions. These are **absolutely** necessary for running this model, including coupling, with the Nextgen framework. These weights and biases are trained to represent many basins, so they do not change for every basin. The model may be trained regionally, or globally, and the weights and biases need to be consistent across the appropriate basins. In the examples contained within this repository, we trained the models to ingest particular inputs (both static and dynamic), and the weights associated with those models cannot be interchanged.  
 
 # More information on training models with NeuralHydrology
 https://neuralhydrology.readthedocs.io/en/latest/index.html
 
 # Unit Test
-New BMI components introduced are categorized as follows,  
+BMI has functions that are used by a framework, or model driver, that allows interaction with models through consistent commands. The unit tests are designed to test those BMI functions (run in these examples from Python commands), to ensure that a framework, or model driver, will get the expected result when a command is called. BMI includes functions for different parts of the modeling chain, including functions to get information from the models (known as `getters`), functions to set information in the models (know as `setters`), functions to setup and run the models, etc. The unit test includes these functions, catagorized below:   
 - Model control functions (4)
 - Model information functions (5)
 - Variable information functions (6)
