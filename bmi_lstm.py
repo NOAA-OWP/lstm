@@ -22,12 +22,12 @@ class bmi_LSTM(Bmi):
         """Create a Bmi LSTM model that is ready for initialization."""
         super(bmi_LSTM, self).__init__()
         self._values = {}
-        # self._var_units = {}      # JG Edit (unused, set in _var_units_map)
         self._var_loc = "node"      # JG Edit
         self._var_grid_id = 0       # JG Edit
         self._start_time = 0.0
         self._end_time = np.finfo("d").max
-        # self._time_units = "s"    # JG Edit (unused, set in _att_map)
+        self._time_units = "s"    # JG Edit
+        self._time_step_size = 3600 # in units of seconds.
         
         # JG Edit: these need to be initialized here as scale_output() called in update()
         self.streamflow_cms = 0.0
@@ -42,10 +42,8 @@ class bmi_LSTM(Bmi):
         'version':            '1.0',
         'author_name':        'Jonathan Martin Frame',
         'grid_type':          'scalar', # JG Edit
-        'time_step_size':      1,       # JG Edit
-        #'time_step_type':     'donno', # JG Edit (unused)  
-        #'step_method':        'none',  # JG Edit (unused)
-        'time_units':         '1 hour' }
+        'time_step_size':      3600,       # JG Edit
+        'time_units':         'seconds' }
 
     #---------------------------------------------
     # Input variable names (CSDMS standard names)
@@ -141,9 +139,12 @@ class bmi_LSTM(Bmi):
     def initialize( self, bmi_cfg_file=None ):
 
         # ----- Create some lookup tabels from the long variable names --------#
-        self._var_name_map_long_first = {long_name:self._var_name_units_map[long_name][0] for long_name in self._var_name_units_map.keys()}
-        self._var_name_map_short_first = {self._var_name_units_map[long_name][0]:long_name for long_name in self._var_name_units_map.keys()}
-        self._var_units_map = {long_name:self._var_name_units_map[long_name][1] for long_name in self._var_name_units_map.keys()}
+        self._var_name_map_long_first = {long_name:self._var_name_units_map[long_name][0] for \
+                                         long_name in self._var_name_units_map.keys()}
+        self._var_name_map_short_first = {self._var_name_units_map[long_name][0]:long_name for \
+                                          long_name in self._var_name_units_map.keys()}
+        self._var_units_map = {long_name:self._var_name_units_map[long_name][1] for \
+                                          long_name in self._var_name_units_map.keys()}
         
         # -------------- Initalize all the variables --------------------------# 
         # -------------- so that they'll be picked up with the get functions --#
@@ -200,7 +201,11 @@ class bmi_LSTM(Bmi):
             self.h_t = torch.zeros(1, self.batch_size, self.hidden_layer_size).float()
             self.c_t = torch.zeros(1, self.batch_size, self.hidden_layer_size).float()
 
-        self.t = 0
+        # ------------- Start a simulation time  -----------------------------#
+        # jmframe: Since the simulation time here doesn't really matter. 
+        #          Just use seconds and set the time to zero
+        #          But add some logic maybe, so to be able to start at some time
+        self.t = self._start_time
 
         # ----------- The output is area normalized, this is needed to un-normalize it
         #                         mm->m                             km2 -> m2          hour->s    
@@ -216,13 +221,44 @@ class bmi_LSTM(Bmi):
             
             self.scale_output()
             
-            self.t += 1
-    
+            self.t += self._time_step_size
+
     #------------------------------------------------------------ 
-    def update_until(self, last_update):
-        first_update=self.t
-        for t in range(first_update, last_update):
+    def update_frac(self, time_frac):
+        """Update model by a fraction of a time step.
+        Parameters
+        ----------
+        time_frac : float
+            Fraction fo a time step.
+        """
+        print("Warning: This version of the LSTM is designed to make predictions on one hour timesteps.")
+        time_step = self.get_time_step()
+        self._time_step_size = time_frac * self._time_step_size
+        self.update()
+        self._time_step_size = time_step
+
+    #------------------------------------------------------------ 
+    def update_until(self, then):
+        """Update model until a particular time.
+        Parameters
+        ----------
+        then : float
+            Time to run model until.
+        """
+        print("then", then)
+        print("self.get_current_time()", self.get_current_time())
+        print("self.get_time_step()", self.get_time_step())
+        n_steps = (then - self.get_current_time()) / self.get_time_step()
+
+        for _ in range(int(n_steps)):
             self.update()
+        self.update_frac(n_steps - int(n_steps))
+
+    #------------------------------------------------------------ 
+    #def update_until(self, last_update):
+    #    first_update=self.t
+    #    for t in range(first_update, last_update):
+    #        self.update()
     #------------------------------------------------------------    
     def finalize( self ):
         """Finalize model."""
@@ -483,12 +519,14 @@ class bmi_LSTM(Bmi):
     #-------------------------------------------------------------------
     def get_time_step( self ):
 
-        return self.get_attribute( 'time_step_size' ) #JG: Edit
+        #return self.get_attribute( '_time_step_size' ) #JG: Edit
+        return self._time_step_size
 
     #-------------------------------------------------------------------
     def get_time_units( self ):
 
-        return self.get_attribute( 'time_units' ) 
+        #return self.get_attribute( 'time_units' )
+        return self._time_units
        
     #-------------------------------------------------------------------
     def set_value(self, var_name, value):
