@@ -554,8 +554,15 @@ class bmi_LSTM(Bmi):
             Size of data array in bytes.
         """
         # JMFrame NOTE: Had to import sys for this function
-        return sys.getsizeof(self.get_value_ptr(var_name))
-
+        #NJF getsizeof returns the size of the python object...not the raw dtype...
+        #return sys.getsizeof(self.get_value_ptr(var_name))
+        #This is just the itemsize (size per element) * number of elements
+        #Since all are currently scalar, this is 1
+        try:
+            return self.get_var_itemsize(var_name)*len(self.get_value_ptr(var_name))
+        except TypeError:
+            #must be scalar
+            return self.get_var_itemsize(var_name))
     #------------------------------------------------------------ 
     def get_value_at_indices(self, var_name, dest, indices):
         """Get values at particular indices.
