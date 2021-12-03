@@ -435,8 +435,8 @@ class bmi_LSTM(Bmi):
             Data type.
         """
         # JG Edit
-        return self.get_value_ptr(long_var_name)  #.dtype
-    
+        #NJF Need an actual type here...
+        return type(self.get_value_ptr(long_var_name)).__name__ #.dtype
     #------------------------------------------------------------ 
     def get_var_grid(self, name):
         
