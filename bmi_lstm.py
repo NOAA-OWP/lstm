@@ -137,7 +137,9 @@ class bmi_LSTM(Bmi):
 
     #-------------------------------------------------------------------
     def initialize( self, bmi_cfg_file=None ):
-
+        #NJF ensure this is a Path type so the follow open works as expected
+        #When used with NGen, the bmi_cfg_file is just a string...
+        bmi_cfg_file = Path(bmi_cfg_file)
         # ----- Create some lookup tabels from the long variable names --------#
         self._var_name_map_long_first = {long_name:self._var_name_units_map[long_name][0] for long_name in self._var_name_units_map.keys()}
         self._var_name_map_short_first = {self._var_name_units_map[long_name][0]:long_name for long_name in self._var_name_units_map.keys()}
