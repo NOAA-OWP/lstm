@@ -45,7 +45,8 @@ class bmi_LSTM(Bmi):
         'time_step_size':      1,       # JG Edit
         #'time_step_type':     'donno', # JG Edit (unused)  
         #'step_method':        'none',  # JG Edit (unused)
-        'time_units':         '1 hour' }
+        #'time_units':         '1 hour' #NJF Have to drop the 1 for NGEN to recognize the unit
+        'time_units':         'hour' }
 
     #---------------------------------------------
     # Input variable names (CSDMS standard names)
