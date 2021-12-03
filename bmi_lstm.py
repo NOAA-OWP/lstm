@@ -500,12 +500,20 @@ class bmi_LSTM(Bmi):
             Name of variable as CSDMS Standard Name.
         src : array_like
               Array of new values.
-        """ 
-        setattr( self, var_name, value )
-
-        # jmframe: this next line is basically a duplicate. 
-        # I guess we should stick with the attribute names instead of a dictionary approach. 
-        self._values[var_name] = value
+        """
+        try:
+            #NJF From NGEN, `vlaue` is a singleton array
+            setattr( self, var_name, value[0] )
+        
+            # jmframe: this next line is basically a duplicate. 
+            # I guess we should stick with the attribute names instead of a dictionary approach. 
+            self._values[var_name] = value[0]
+        except TypeError:
+            setattr( self, var_name, value )
+        
+            # jmframe: this next line is basically a duplicate. 
+            # I guess we should stick with the attribute names instead of a dictionary approach. 
+            self._values[var_name] = value
 
     #------------------------------------------------------------ 
     def set_value_at_indices(self, name, inds, src):
