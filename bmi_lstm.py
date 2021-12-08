@@ -42,8 +42,11 @@ class bmi_LSTM(Bmi):
         'version':            '1.0',
         'author_name':        'Jonathan Martin Frame',
         'grid_type':          'scalar', # JG Edit
-        'time_step_size':      3600,       # JG Edit
-        'time_units':         'seconds' }
+        'time_step_size':      1,       # JG Edit
+        #'time_step_type':     'donno', # JG Edit (unused)  
+        #'step_method':        'none',  # JG Edit (unused)
+        #'time_units':         '1 hour' #NJF Have to drop the 1 for NGEN to recognize the unit
+        'time_units':         'hour' }
 
     #---------------------------------------------
     # Input variable names (CSDMS standard names)
@@ -137,7 +140,9 @@ class bmi_LSTM(Bmi):
 
     #-------------------------------------------------------------------
     def initialize( self, bmi_cfg_file=None ):
-
+        #NJF ensure this is a Path type so the follow open works as expected
+        #When used with NGen, the bmi_cfg_file is just a string...
+        bmi_cfg_file = Path(bmi_cfg_file)
         # ----- Create some lookup tabels from the long variable names --------#
         self._var_name_map_long_first = {long_name:self._var_name_units_map[long_name][0] for \
                                          long_name in self._var_name_units_map.keys()}
@@ -471,8 +476,8 @@ class bmi_LSTM(Bmi):
             Data type.
         """
         # JG Edit
-        return self.get_value_ptr(long_var_name)  #.dtype
-    
+        #NJF Need an actual type here...
+        return type(self.get_value_ptr(long_var_name)).__name__ #.dtype
     #------------------------------------------------------------ 
     def get_var_grid(self, name):
         
@@ -538,12 +543,20 @@ class bmi_LSTM(Bmi):
             Name of variable as CSDMS Standard Name.
         src : array_like
               Array of new values.
-        """ 
-        setattr( self, var_name, value )
-
-        # jmframe: this next line is basically a duplicate. 
-        # I guess we should stick with the attribute names instead of a dictionary approach. 
-        self._values[var_name] = value
+        """
+        try:
+            #NJF From NGEN, `vlaue` is a singleton array
+            setattr( self, var_name, value[0] )
+        
+            # jmframe: this next line is basically a duplicate. 
+            # I guess we should stick with the attribute names instead of a dictionary approach. 
+            self._values[var_name] = value[0]
+        except TypeError:
+            setattr( self, var_name, value )
+        
+            # jmframe: this next line is basically a duplicate. 
+            # I guess we should stick with the attribute names instead of a dictionary approach. 
+            self._values[var_name] = value
 
     #------------------------------------------------------------ 
     def set_value_at_indices(self, name, inds, src):
@@ -584,8 +597,15 @@ class bmi_LSTM(Bmi):
             Size of data array in bytes.
         """
         # JMFrame NOTE: Had to import sys for this function
-        return sys.getsizeof(self.get_value_ptr(var_name))
-
+        #NJF getsizeof returns the size of the python object...not the raw dtype...
+        #return sys.getsizeof(self.get_value_ptr(var_name))
+        #This is just the itemsize (size per element) * number of elements
+        #Since all are currently scalar, this is 1
+        try:
+            return self.get_var_itemsize(var_name)*len(self.get_value_ptr(var_name))
+        except TypeError:
+            #must be scalar
+            return self.get_var_itemsize(var_name))
     #------------------------------------------------------------ 
     def get_value_at_indices(self, var_name, dest, indices):
         """Get values at particular indices.
