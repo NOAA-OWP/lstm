@@ -580,12 +580,12 @@ class bmi_LSTM(Bmi):
         array_like
             Values at indices.
         """
-        #JMFrame: chances are that the index will be zero, so let's include that logic
-        if np.array(self.get_value(var_name)).flatten().shape[0] == 1:
-            return self.get_value(var_name)
-        else:
-            val_array = self.get_value(var_name).flatten()
-            return np.array([val_array[i] for i in indices])
+        #NJF This must copy into dest!!!
+        tmp = self.get_value_ptr(var_name)
+        #Convert to np.array in case of singleton/non numpy type, then flatten
+        data = np.array(self.get_value(var_name)).flatten()
+        dest[:] = data[indices]
+        return dest
 
     # JG Note: remaining grid funcs do not apply for type 'scalar'
     #   Yet all functions in the BMI must be implemented 
