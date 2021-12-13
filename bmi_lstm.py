@@ -75,8 +75,8 @@ class bmi_LSTM(Bmi):
     #------------------------------------------------------
     #_var_name_map_long_first = {
     _var_name_units_map = {
-                                'land_surface_water__runoff_volume_flux':['streamflow_cfs','ft3 s-1'],
-                                'land_surface_water__runoff_depth':['streamflow_mm','mm'],
+                                'land_surface_water__runoff_volume_flux':['streamflow_cms','m3 s-1'],
+                                'land_surface_water__runoff_depth':['streamflow_m','m'],
                                 #--------------   Dynamic inputs --------------------------------
                                 'atmosphere_water__time_integral_of_precipitation_mass_flux':['total_precipitation','kg m-2'],
                                 'land_surface_radiation~incoming~longwave__energy_flux':['longwave_radiation','W m-2'],
@@ -296,12 +296,12 @@ class bmi_LSTM(Bmi):
         elif self.cfg_train['target_variables'][0] == 'QObs(mm/d)':
             self.surface_runoff_mm = (self.lstm_output[0,0,0].numpy().tolist() * self.out_std + self.out_mean) * (1/24)
             
-        self._values['land_surface_water__runoff_depth'] = self.surface_runoff_mm
-        setattr(self, 'land_surface_water__runoff_depth', self.surface_runoff_mm)
+        self._values['land_surface_water__runoff_depth'] = self.surface_runoff_mm/1000.0
+        setattr(self, 'land_surface_water__runoff_depth', self.surface_runoff_mm/1000.0)
         self.streamflow_cms = self.surface_runoff_mm * self.output_factor_cms
 
-        self._values['land_surface_water__runoff_volume_flux'] = self.streamflow_cms * (1/35.314)
-        setattr(self, 'land_surface_water__runoff_volume_flux', self.streamflow_cms * (1/35.314))
+        self._values['land_surface_water__runoff_volume_flux'] = self.streamflow_cms
+        setattr(self, 'land_surface_water__runoff_volume_flux', self.streamflow_cms)
 
     #-------------------------------------------------------------------
     def read_initial_states(self):
