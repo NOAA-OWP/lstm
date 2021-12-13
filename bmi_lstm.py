@@ -78,7 +78,10 @@ class bmi_LSTM(Bmi):
                                 'land_surface_water__runoff_volume_flux':['streamflow_cms','m3 s-1'],
                                 'land_surface_water__runoff_depth':['streamflow_m','m'],
                                 #--------------   Dynamic inputs --------------------------------
-                                'atmosphere_water__time_integral_of_precipitation_mass_flux':['total_precipitation','kg m-2'],
+                                #NJF Let the model assume equivalence of `kg m-2` == `mm h-1` since we can't convert
+                                #mass flux automatically from the ngen framework
+                                #'atmosphere_water__time_integral_of_precipitation_mass_flux':['total_precipitation','kg m-2'],
+                                'atmosphere_water__time_integral_of_precipitation_mass_flux':['total_precipitation','mm h-1'],
                                 'land_surface_radiation~incoming~longwave__energy_flux':['longwave_radiation','W m-2'],
                                 'land_surface_radiation~incoming~shortwave__energy_flux':['shortwave_radiation','W m-2'],
                                 'atmosphere_air_water~vapor__relative_saturation':['specific_humidity','kg kg-1'],
