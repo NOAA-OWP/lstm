@@ -83,7 +83,7 @@ class bmi_LSTM(Bmi):
                                 'land_surface_radiation~incoming~shortwave__energy_flux':['shortwave_radiation','W m-2'],
                                 'atmosphere_air_water~vapor__relative_saturation':['specific_humidity','kg kg-1'],
                                 'land_surface_air__pressure':['pressure','Pa'],
-                                'land_surface_air__temperature':['temperature','K'],
+                                'land_surface_air__temperature':['temperature','C'],
                                 'land_surface_wind__x_component_of_velocity':['wind_u','m s-1'],
                                 'land_surface_wind__y_component_of_velocity':['wind_v','m s-1'],
                                 #--------------   STATIC Attributes -----------------------------
@@ -503,6 +503,11 @@ class bmi_LSTM(Bmi):
               Array of new values.
         """
         try:
+            #FIXME figure out why temperature isn't converted correctly
+            #For now, this is required to change Kelvin to Celcius for 
+            #temperature input
+            if var_name == 'land_surface_air__temperature':
+                value[0] = value[0] - 273.15   
             #NJF From NGEN, `vlaue` is a singleton array
             setattr( self, var_name, value[0] )
         
@@ -580,13 +585,13 @@ class bmi_LSTM(Bmi):
         array_like
             Values at indices.
         """
-        #JMFrame: chances are that the index will be zero, so let's include that logic
-        if np.array(self.get_value(var_name)).flatten().shape[0] == 1:
-            return self.get_value(var_name)
-        else:
-            val_array = self.get_value(var_name).flatten()
-            return np.array([val_array[i] for i in indices])
-
+        #NJF This must copy into dest!!!
+        tmp = self.get_value_ptr(var_name)
+        #Convert to np.array in case of singleton/non numpy type, then flatten
+        data = np.array(self.get_value(var_name)).flatten()
+        dest[:] = data[indices]
+        return dest
+ 
     # JG Note: remaining grid funcs do not apply for type 'scalar'
     #   Yet all functions in the BMI must be implemented 
     #   See https://bmi.readthedocs.io/en/latest/bmi.best_practices.html          
