@@ -571,7 +571,7 @@ class bmi_LSTM(Bmi):
             return self.get_var_itemsize(var_name)*len(self.get_value_ptr(var_name))
         except TypeError:
             #must be scalar
-            return self.get_var_itemsize(var_name))
+            return self.get_var_itemsize(var_name)
     #------------------------------------------------------------ 
     def get_value_at_indices(self, var_name, dest, indices):
         """Get values at particular indices.
