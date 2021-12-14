@@ -584,7 +584,6 @@ class bmi_LSTM(Bmi):
             Values at indices.
         """
         #NJF This must copy into dest!!!
-        tmp = self.get_value_ptr(var_name)
         #Convert to np.array in case of singleton/non numpy type, then flatten
         data = np.array(self.get_value(var_name)).flatten()
         dest[:] = data[indices]
