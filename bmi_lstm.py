@@ -86,7 +86,7 @@ class bmi_LSTM(Bmi):
                                 'land_surface_radiation~incoming~shortwave__energy_flux':['shortwave_radiation','W m-2'],
                                 'atmosphere_air_water~vapor__relative_saturation':['specific_humidity','kg kg-1'],
                                 'land_surface_air__pressure':['pressure','Pa'],
-                                'land_surface_air__temperature':['temperature','C'],
+                                'land_surface_air__temperature':['temperature','degC'],
                                 'land_surface_wind__x_component_of_velocity':['wind_u','m s-1'],
                                 'land_surface_wind__y_component_of_velocity':['wind_v','m s-1'],
                                 #--------------   STATIC Attributes -----------------------------
@@ -505,12 +505,7 @@ class bmi_LSTM(Bmi):
         src : array_like
               Array of new values.
         """
-        try:
-            #FIXME figure out why temperature isn't converted correctly
-            #For now, this is required to change Kelvin to Celcius for 
-            #temperature input
-            if var_name == 'land_surface_air__temperature':
-                value[0] = value[0] - 273.15   
+        try: 
             #NJF From NGEN, `vlaue` is a singleton array
             setattr( self, var_name, value[0] )
         
