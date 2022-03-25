@@ -509,7 +509,8 @@ class bmi_LSTM(Bmi):
             # jmframe: this next line is basically a duplicate. 
             # I guess we should stick with the attribute names instead of a dictionary approach. 
             self._values[var_name] = value[0]
-        except TypeError:
+        # JLG 03242022: this isn't really an "error" block as standalone considers value as scalar?
+        except:
             setattr( self, var_name, value )
         
             # jmframe: this next line is basically a duplicate. 
@@ -563,7 +564,7 @@ class bmi_LSTM(Bmi):
             return self.get_var_itemsize(var_name)*len(self.get_value_ptr(var_name))
         except TypeError:
             #must be scalar
-            return self.get_var_itemsize(var_name))
+            return self.get_var_itemsize(var_name)
     #------------------------------------------------------------ 
     def get_value_at_indices(self, var_name, dest, indices):
         """Get values at particular indices.
