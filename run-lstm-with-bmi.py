@@ -25,8 +25,8 @@ print('Now loop through the inputs, set the forcing values, and update the model
 for precip, temp in zip(list(sample_data['total_precipitation'][3].data),
                         list(sample_data['temperature'][3].data)):
 
-    model.set_value('atmosphere_water__time_integral_of_precipitation_mass_flux',precip)
-    model.set_value('land_surface_air__temperature',temp)
+    model.set_value('atmosphere_water__time_integral_of_precipitation_mass_flux',np.atleast_1d(precip))
+    model.set_value('land_surface_air__temperature',np.atleast_1d(temp))
 
     print('the temperature and precipitation are set to {:.2f} and {:.2f}'.format(model.get_value('land_surface_air__temperature'), 
                                                      model.get_value('atmosphere_water__time_integral_of_precipitation_mass_flux')))

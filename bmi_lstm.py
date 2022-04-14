@@ -510,7 +510,7 @@ class bmi_LSTM(Bmi):
             # I guess we should stick with the attribute names instead of a dictionary approach. 
             self._values[var_name] = value[0]
         # JLG 03242022: this isn't really an "error" block as standalone considers value as scalar?
-        except:
+        except TypeError:
             setattr( self, var_name, value )
         
             # jmframe: this next line is basically a duplicate. 
