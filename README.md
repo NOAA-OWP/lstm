@@ -1,5 +1,5 @@
 # Basic Model Interface (BMI) for streamflow prediction using Long Short-Term Memory (LSTM) networks
-This Long Short-Term Memory (LSTM) network was developed for use in the [Next Generation National Water Model (Nextgen)](https://github.com/NOAA-OWP/ngen). LSTMs are able to provide relatively accurate streamflow predictions when compared to other model types. This module is available through a [Basic Model Interface (BMI)](https://bmi.readthedocs.io/en/latest/).  
+This Long Short-Term Memory (LSTM) network was developed for use in the [Next Generation Water Resources Modeling Framework (Nextgen)](https://github.com/NOAA-OWP/ngen). LSTMs are able to provide relatively accurate streamflow predictions when compared to other model types. This module is available through a [Basic Model Interface (BMI)](https://bmi.readthedocs.io/en/latest/).  
 
 # Adaption from NeuralHydrology
 This module is dependent on a trained deep learning model. The forward pass of this LSTM model (`nextgen_cuda_lstm.py`) is based on that of CudaLSTM in NeuralHydrology, but in principle can be used with any LSTM, so long as the `bmi_lstm.py` loads it in.  
