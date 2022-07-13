@@ -30,12 +30,12 @@ for precip, temp in zip(list(sample_data['total_precipitation'][3].data),
 
     print('the temperature and precipitation are set to {:.2f} and {:.2f}'.format(model.get_value('land_surface_air__temperature'), 
                                                      model.get_value('atmosphere_water__time_integral_of_precipitation_mass_flux')))
-    model.update()
+    model.update_until(model.t+model._time_step_size)
 
     print('the streamflow (CFS) at time {} is {:.2f}'.format(model.get_current_time(), 
                                 model.get_value('land_surface_water__runoff_volume_flux')))
 
-    if model.t > 10:
+    if model.t > 10*model._time_step_size:
         print('stopping the loop')
         break
 
