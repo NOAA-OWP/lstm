@@ -1,11 +1,11 @@
 # Basic Model Interface (BMI) for streamflow prediction using Long Short-Term Memory (LSTM) networks
-This LSTM is for use in the Next Generation National Water Model. LSTMs have been shown to be very good deep learning models for streamflow prediction. This module is available through a BMI interface that is built directly into the deep learning model class. That means this LSTM is inherently BMI enabled.  
+This LSTM is for use in the [Next Generation Water Resources Modeling Framework](https://github.com/NOAA-OWP/ngen). LSTMs are deep learning models that provide accurate streamflow predictions (e.g. [Kratzert et al., 2019](https://hess.copernicus.org/articles/23/5089/2019/)). This implementation includes BMI that is built directly into the deep learning model class, allowing it to function with BMI-enabled frameworks.  
 
 # Adaption from NeuralHydrology
 This module is dependent on a trained deep learning model. The forward pass of this LSTM model (`nextgen_cuda_lstm.py`) is based on that of CudaLSTM in NeuralHydrology, but in principle can be used with any LSTM, so long as the `bmi_lstm.py` loads it in.  
 
 # Data requirements
-All data required for a test run of this model is available in `./data/sample_data/usgs-streamflow-nldas_hourly.nc`. This includes:
+All data required for a test run of this model are available in `./data/sample_data/usgs-streamflow-nldas_hourly.nc`. This includes:
 * Forcing data
 * Observation values  
 
@@ -44,7 +44,7 @@ The Jupyter Notebook `run-lstm-with-bmi.ipynb` and a Python script `run-lstm-wit
 6. And finally you should finalize the model instance: `model.finalize()`
 
 # Model weights and biases
-The training procedure should produce weights and biases for the LSTM model. These are stored in Pytorch files (`*.pt`), are kept within the training directories: `trained_neuralhydrology_models`. Without these the model can still run, but will not make streamflow predictions. These are **absolutely** necessary for running this model with NextGen. These weights and biases are trained to represent many basins, so they do not change for every basin. The model may be trained regionally, or globally, and the weights and biases need to be consistent across the appropriate basins.
+The training procedure should produce weights and biases for the LSTM model. These are stored in Pytorch files (`*.pt`), are kept within the training directories: `trained_neuralhydrology_models`. Without these the model can still run, but will not make streamflow predictions. These are **absolutely** necessary for running this model with the Next Generation Water Resources Modeling Framework. These weights and biases are trained to represent many basins, so they do not change for every basin. The model may be trained regionally, or globally, and the weights and biases need to be consistent across the appropriate basins.
 
 # More information on training models with NeuralHydrology
 https://neuralhydrology.readthedocs.io/en/latest/index.html
@@ -60,7 +60,7 @@ New BMI components introduced are categorized as follows,
 
 The test script `./run_bmi_unit_test.py` fully examines the functionality of all applicable definitions.
 
-To run lstm-bmi unit test, simply call `python ./run_bmi_unit_test.py` within the active conda environment `bmi_lstm`, as oulined in [ Running the model](#running-the-model).
+To run lstm-bmi unit test, simply call `python ./run_bmi_unit_test.py` within the active conda environment `bmi_lstm`, as oulined in [Running the model](#running-the-model).
 
-Recall that BMI guides interoperability for model-coupling, where model components (i.e. inputs and outputs) are easily shared amongst each other.
+Recall that BMI guides interoperability for model coupling, where model components (i.e. inputs and outputs) are easily shared amongst each other.
 When testing outside of a true framework, we consider the behavior of BMI function definitions, rather than any expected values they produce. 
