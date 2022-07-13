@@ -9,7 +9,7 @@ basin_name: 'FAKE BASIN'
 basin_id: 'fake_id'
 
 # This is required for determining what is printed out
-verbose: 1
+verbose: 0
 
 # STATIC Attributes
 ## Required to run the LSTM

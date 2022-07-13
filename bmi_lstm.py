@@ -22,14 +22,14 @@ class bmi_LSTM(Bmi):
         """Create a Bmi LSTM model that is ready for initialization."""
         super(bmi_LSTM, self).__init__()
         self._values = {}
-        self._var_loc = "node"      # JG Edit
-        self._var_grid_id = 0       # JG Edit
+        self._var_loc = "node"
+        self._var_grid_id = 0
         self._start_time = 0.0
         self._end_time = np.finfo("d").max
-        self._time_units = "s"    # JG Edit
+        self._time_units = "s"
         self._time_step_size = 3600 # in units of seconds.
         
-        # JG Edit: these need to be initialized here as scale_output() called in update()
+        # Note: these need to be initialized here as scale_output() called in update()
         self.streamflow_cms = 0.0
         self.streamflow_fms = 0.0
         self.surface_runoff_mm = 0.0
@@ -41,10 +41,10 @@ class bmi_LSTM(Bmi):
         'model_name':         'LSTM for Next Generation NWM',
         'version':            '1.0',
         'author_name':        'Jonathan Martin Frame',
-        'grid_type':          'scalar', # JG Edit
-        'time_step_size':      1,       # JG Edit
-        #'time_step_type':     'donno', # JG Edit (unused)  
-        #'step_method':        'none',  # JG Edit (unused)
+        'grid_type':          'scalar', 
+        'time_step_size':      1,       
+        #'time_step_type':     'donno', #unused  
+        #'step_method':        'none',  #unused
         #'time_units':         '1 hour' #NJF Have to drop the 1 for NGEN to recognize the unit
         'time_units':         'hour' }
 
@@ -219,6 +219,9 @@ class bmi_LSTM(Bmi):
         #                         mm->m                             km2 -> m2          hour->s    
         self.output_factor_cms =  (1/1000) * (self.cfg_bmi['area_sqkm'] * 1000*1000) * (1/3600)
 
+        # Gather verbosity lvl from bmi-config for stdout printing, etc.    
+        self.verbose = self.cfg_bmi['verbose']
+
     #------------------------------------------------------------ 
     def update(self):
         with torch.no_grad():
@@ -239,7 +242,8 @@ class bmi_LSTM(Bmi):
         time_frac : float
             Fraction fo a time step.
         """
-        print("Warning: This version of the LSTM is designed to make predictions on one hour timesteps.")
+        if self.verbose > 0:
+            print("Warning: This version of the LSTM is designed to make predictions on one hour timesteps.")
         time_step = self.get_time_step()
         self._time_step_size = time_frac * self._time_step_size
         self.update()
@@ -253,9 +257,10 @@ class bmi_LSTM(Bmi):
         then : float
             Time to run model until.
         """
-        print("then", then)
-        print("self.get_current_time()", self.get_current_time())
-        print("self.get_time_step()", self.get_time_step())
+        if self.verbose > 0:
+            print("then", then)
+            print("self.get_current_time()", self.get_current_time())
+            print("self.get_time_step()", self.get_time_step())
         n_steps = (then - self.get_current_time()) / self.get_time_step()
 
         for _ in range(int(n_steps)):
@@ -401,7 +406,7 @@ class bmi_LSTM(Bmi):
     #------------------------------------------------------------ 
     def get_component_name(self):
         """Name of the component."""
-        return self.get_attribute( 'model_name' ) #JG Edit
+        return self.get_attribute( 'model_name' )
 
     #------------------------------------------------------------ 
     def get_input_item_count(self):
@@ -442,10 +447,11 @@ class bmi_LSTM(Bmi):
             Value array.
         """
         if getattr(self, var_name) != self._values[var_name]:
-            print("WARNING: The variable ({}) stored in two locations is inconsistent".format(var_name))
-            print('getattr(self, var_name)', getattr(self, var_name))
-            print('self.surface_runoff_mm', self.surface_runoff_mm)
-            print('self._values[var_name]', self._values[var_name])
+            if self.verbose > 0:
+                print("WARNING: The variable ({}) stored in two locations is inconsistent".format(var_name))
+                print('getattr(self, var_name)', getattr(self, var_name))
+                print('self.surface_runoff_mm', self.surface_runoff_mm)
+                print('self._values[var_name]', self._values[var_name])
         
         return getattr(self, var_name)   # We don't need to store the variable in a dict and as attributes
 #        return self._values[var_name]   # Pick a place to store them and stick with it.
@@ -478,14 +484,12 @@ class bmi_LSTM(Bmi):
         str
             Data type.
         """
-        # JG Edit
         #NJF Need an actual type here...
         return type(self.get_value_ptr(long_var_name)).__name__ #.dtype
     #------------------------------------------------------------ 
     def get_var_grid(self, name):
         
-        # JG Edit
-        # all vars have grid 0 but check if its in names list first
+        # Note: all vars have grid 0 but check if its in names list first
         if name in (self._output_var_names + self._input_var_names):
             return self._var_grid_id  
 
@@ -497,8 +501,7 @@ class bmi_LSTM(Bmi):
     #------------------------------------------------------------ 
     def get_var_location(self, name):
         
-        # JG Edit
-        # all vars have location node but check if its in names list first
+        # Note: all vars have location node but check if its in names list first
         if name in (self._output_var_names + self._input_var_names):
             return self._var_loc
 
@@ -511,23 +514,23 @@ class bmi_LSTM(Bmi):
     #-------------------------------------------------------------------
     def get_start_time( self ):
     
-        return self._start_time #JG Edit
+        return self._start_time
 
     #-------------------------------------------------------------------
     def get_end_time( self ):
 
-        return self._end_time #JG Edit
+        return self._end_time
 
 
     #-------------------------------------------------------------------
     def get_current_time( self ):
 
-        return self.t #JG Edit
+        return self.t
 
     #-------------------------------------------------------------------
     def get_time_step( self ):
 
-        #return self.get_attribute( '_time_step_size' ) #JG: Edit
+        #return self.get_attribute( '_time_step_size' )
         return self._time_step_size
 
     #-------------------------------------------------------------------
@@ -632,7 +635,7 @@ class bmi_LSTM(Bmi):
         dest[:] = data[indices]
         return dest
  
-    # JG Note: remaining grid funcs do not apply for type 'scalar'
+    #   Note: remaining grid funcs do not apply for type 'scalar'
     #   Yet all functions in the BMI must be implemented 
     #   See https://bmi.readthedocs.io/en/latest/bmi.best_practices.html          
     #------------------------------------------------------------ 
@@ -670,8 +673,7 @@ class bmi_LSTM(Bmi):
     #------------------------------------------------------------ 
     def get_grid_rank(self, grid_id):
  
-        # JG Edit
-        # 0 is the only id we have
+         # 0 is the only id we have
         if grid_id == 0: 
             return 1
 
@@ -682,7 +684,6 @@ class bmi_LSTM(Bmi):
     #------------------------------------------------------------ 
     def get_grid_size(self, grid_id):
        
-        # JG Edit
         # 0 is the only id we have
         if grid_id == 0:
             return 1
@@ -694,7 +695,6 @@ class bmi_LSTM(Bmi):
     #------------------------------------------------------------ 
     def get_grid_type(self, grid_id=0):
 
-        # JG Edit
         # 0 is the only id we have        
         if grid_id == 0:
             return 'scalar'
