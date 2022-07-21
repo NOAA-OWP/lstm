@@ -8,17 +8,21 @@ from netCDF4 import Dataset
 # This is the BMI LSTM that we will be running
 import bmi_lstm
 
+# Define primary bmi config and input data file paths
+bmi_cfg_file=Path('./bmi_config_files/01022500_hourly_all_attributes_forcings.yml')
+sample_data_file = Path('./data/usgs-streamflow-nldas_hourly.nc')
+
 # creating an instance of an LSTM model
 print('Creating an instance of an BMI_LSTM model object')
 model = bmi_lstm.bmi_LSTM()
 
 # Initializing the BMI
 print('Initializing the BMI')
-model.initialize(bmi_cfg_file=Path('./bmi_config_files/01022500_hourly_all_attributes_forcings.yml'))
+model.initialize(bmi_cfg_file)
 
 # Get input data that matches the LSTM test runs
 print('Gathering input data')
-sample_data = Dataset(Path('./data/usgs-streamflow-nldas_hourly.nc'), 'r')
+sample_data = Dataset(sample_data_file, 'r')
 
 # Now loop through the inputs, set the forcing values, and update the model
 #print('Now loop through the inputs, set the forcing values, and update the model')
