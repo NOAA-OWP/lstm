@@ -382,7 +382,7 @@ try:
     # go ahead and print time to show iteration
     # wrap another try/except incase get_current_time() failed
     try: 
-        print (" updating...        time " + str(bmi.get_current_time()));
+        print (" updating...        timestep: " + str(bmi.get_current_time()));
     except: 
         print (" updating...");
     pass_count += 1
@@ -396,7 +396,7 @@ try:
     # go ahead and print time to show iteration
     # wrap another try/except incase get_current_time() failed
     try: 
-        print (" updating until...  time " + str(bmi.get_current_time()));
+        print (" updating until...  timestep: " + str(bmi.get_current_time()));
     except: 
         print (" updating until...");
     pass_count += 1

@@ -38,7 +38,7 @@ for precip, temp in zip(list(sample_data['total_precipitation'][3].data),
     #model.update_until(model.t+model._time_step_size)
     model.update()
 
-    print(' Streamflow (CFS) at time {} is {:.2f}'.format(model.get_current_time(), 
+    print(' Streamflow (CFS) at time {} ({}) is {:.2f}'.format(model.get_current_time(), model.get_time_units(),
                                 model.get_value('land_surface_water__runoff_volume_flux')))
 
     if model.t > 10:
