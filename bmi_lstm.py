@@ -24,10 +24,10 @@ class bmi_LSTM(Bmi):
         self._values = {}
         self._var_loc = "node"
         self._var_grid_id = 0
-        self._start_time = 0.0
+        self._start_time = 0
         self._end_time = np.finfo("d").max
-        self._time_units = "s"
-        self._time_step_size = 3600 # in units of seconds.
+        #self._time_units = "s"
+        #self._time_step_size = 3600 # in units of seconds.
         
         # Note: these need to be initialized here as scale_output() called in update()
         self.streamflow_cms = 0.0
@@ -232,46 +232,48 @@ class bmi_LSTM(Bmi):
             
             self.scale_output()
             
-            self.t += self._time_step_size
+            #self.t += self._time_step_size
+            self.t += self.get_time_step()
 
     #------------------------------------------------------------ 
-    def update_frac(self, time_frac):
-        """Update model by a fraction of a time step.
-        Parameters
-        ----------
-        time_frac : float
-            Fraction fo a time step.
-        """
-        if self.verbose > 0:
-            print("Warning: This version of the LSTM is designed to make predictions on one hour timesteps.")
-        time_step = self.get_time_step()
-        self._time_step_size = time_frac * self._time_step_size
-        self.update()
-        self._time_step_size = time_step
+    # NOT CURRENTLY IN USE
+    # def update_frac(self, time_frac):
+    #     """Update model by a fraction of a time step.
+    #     Parameters
+    #     ----------
+    #     time_frac : float
+    #         Fraction fo a time step.
+    #     """
+    #     if self.verbose > 0:
+    #         print("Warning: This version of the LSTM is designed to make predictions on one hour timesteps.")
+    #     time_step = self.get_time_step()
+    #     self._time_step_size = time_frac * self._time_step_size
+    #     self.update()
+    #     self._time_step_size = time_step
 
     #------------------------------------------------------------ 
-    def update_until(self, then):
-        """Update model until a particular time.
-        Parameters
-        ----------
-        then : float
-            Time to run model until.
-        """
-        if self.verbose > 0:
-            print("then", then)
-            print("self.get_current_time()", self.get_current_time())
-            print("self.get_time_step()", self.get_time_step())
-        n_steps = (then - self.get_current_time()) / self.get_time_step()
+    # def update_until(self, then):
+    #     """Update model until a particular time.
+    #     Parameters
+    #     ----------
+    #     then : float
+    #         Time to run model until.
+    #     """
+    #     if self.verbose > 0:
+    #         print("then", then)
+    #         print("self.get_current_time()", self.get_current_time())
+    #         print("self.get_time_step()", self.get_time_step())
+    #     n_steps = (then - self.get_current_time()) / self.get_time_step()
 
-        for _ in range(int(n_steps)):
-            self.update()
-        self.update_frac(n_steps - int(n_steps))
+    #     for _ in range(int(n_steps)):
+    #         self.update()
+    #     self.update_frac(n_steps - int(n_steps))
 
     #------------------------------------------------------------ 
-    #def update_until(self, last_update):
-    #    first_update=self.t
-    #    for t in range(first_update, last_update):
-    #        self.update()
+    def update_until(self, last_update):
+       first_update=self.t
+       for t in range(first_update, last_update):
+           self.update()
     #------------------------------------------------------------    
     def finalize( self ):
         """Finalize model."""
@@ -530,14 +532,14 @@ class bmi_LSTM(Bmi):
     #-------------------------------------------------------------------
     def get_time_step( self ):
 
-        #return self.get_attribute( '_time_step_size' )
-        return self._time_step_size
+        return self.get_attribute( 'time_step_size' )
+        #return self._time_step_size
 
     #-------------------------------------------------------------------
     def get_time_units( self ):
 
-        #return self.get_attribute( 'time_units' )
-        return self._time_units
+        return self.get_attribute( 'time_units' )
+        #return self._time_units
        
     #-------------------------------------------------------------------
     def set_value(self, var_name, value):
