@@ -22,14 +22,14 @@ class bmi_LSTM(Bmi):
         """Create a Bmi LSTM model that is ready for initialization."""
         super(bmi_LSTM, self).__init__()
         self._values = {}
-        # self._var_units = {}      # JG Edit (unused, set in _var_units_map)
-        self._var_loc = "node"      # JG Edit
-        self._var_grid_id = 0       # JG Edit
-        self._start_time = 0.0
+        self._var_loc = "node"
+        self._var_grid_id = 0
+        self._start_time = 0
         self._end_time = np.finfo("d").max
-        # self._time_units = "s"    # JG Edit (unused, set in _att_map)
+        #self._time_units = "s"
+        #self._time_step_size = 3600 # in units of seconds.
         
-        # JG Edit: these need to be initialized here as scale_output() called in update()
+        # Note: these need to be initialized here as scale_output() called in update()
         self.streamflow_cms = 0.0
         self.streamflow_fms = 0.0
         self.surface_runoff_mm = 0.0
@@ -41,10 +41,10 @@ class bmi_LSTM(Bmi):
         'model_name':         'LSTM for Next Generation NWM',
         'version':            '1.0',
         'author_name':        'Jonathan Martin Frame',
-        'grid_type':          'scalar', # JG Edit
-        'time_step_size':      1,       # JG Edit
-        #'time_step_type':     'donno', # JG Edit (unused)  
-        #'step_method':        'none',  # JG Edit (unused)
+        'grid_type':          'scalar', 
+        'time_step_size':      1,       
+        #'time_step_type':     'donno', #unused  
+        #'step_method':        'none',  #unused
         #'time_units':         '1 hour' #NJF Have to drop the 1 for NGEN to recognize the unit
         'time_units':         'hour' }
 
@@ -115,7 +115,9 @@ class bmi_LSTM(Bmi):
                                 'soil_bedrock_top__depth__statsgo':['soil_depth_statsgo','m'],
                                 'soil__porosity':['soil_porosity','-'],
                                 'soil_sand__volume_fraction':['sand_frac','percent'],
-                                'soil_silt__volume_fraction':['silt_frac','percent']
+                                'soil_silt__volume_fraction':['silt_frac','percent'], 
+                                'basin_centroid__latitude':['gauge_lat', 'degrees'],
+                                'basin_centroid__longitude':['gauge_lon', 'degrees']
                                  }
 
     #------------------------------------------------------
@@ -131,7 +133,7 @@ class bmi_LSTM(Bmi):
                                'lai_max','low_prec_dur','low_prec_freq','max_water_content',
                                'p_mean','pet_mean','slope_mean','soil_conductivity',
                                'soil_depth_pelletier','soil_depth_statsgo','soil_porosity',
-                               'sand_frac','silt_frac']
+                               'sand_frac','silt_frac', 'gauge_lat', 'gauge_lon']
 
     #------------------------------------------------------------
     #------------------------------------------------------------
@@ -145,9 +147,12 @@ class bmi_LSTM(Bmi):
         #When used with NGen, the bmi_cfg_file is just a string...
         bmi_cfg_file = Path(bmi_cfg_file)
         # ----- Create some lookup tabels from the long variable names --------#
-        self._var_name_map_long_first = {long_name:self._var_name_units_map[long_name][0] for long_name in self._var_name_units_map.keys()}
-        self._var_name_map_short_first = {self._var_name_units_map[long_name][0]:long_name for long_name in self._var_name_units_map.keys()}
-        self._var_units_map = {long_name:self._var_name_units_map[long_name][1] for long_name in self._var_name_units_map.keys()}
+        self._var_name_map_long_first = {long_name:self._var_name_units_map[long_name][0] for \
+                                         long_name in self._var_name_units_map.keys()}
+        self._var_name_map_short_first = {self._var_name_units_map[long_name][0]:long_name for \
+                                          long_name in self._var_name_units_map.keys()}
+        self._var_units_map = {long_name:self._var_name_units_map[long_name][1] for \
+                                          long_name in self._var_name_units_map.keys()}
         
         # -------------- Initalize all the variables --------------------------# 
         # -------------- so that they'll be picked up with the get functions --#
@@ -204,11 +209,18 @@ class bmi_LSTM(Bmi):
             self.h_t = torch.zeros(1, self.batch_size, self.hidden_layer_size).float()
             self.c_t = torch.zeros(1, self.batch_size, self.hidden_layer_size).float()
 
-        self.t = 0
+        # ------------- Start a simulation time  -----------------------------#
+        # jmframe: Since the simulation time here doesn't really matter. 
+        #          Just use seconds and set the time to zero
+        #          But add some logic maybe, so to be able to start at some time
+        self.t = self._start_time
 
         # ----------- The output is area normalized, this is needed to un-normalize it
         #                         mm->m                             km2 -> m2          hour->s    
         self.output_factor_cms =  (1/1000) * (self.cfg_bmi['area_sqkm'] * 1000*1000) * (1/3600)
+
+        # Gather verbosity lvl from bmi-config for stdout printing, etc.    
+        self.verbose = self.cfg_bmi['verbose']
 
     #------------------------------------------------------------ 
     def update(self):
@@ -220,13 +232,48 @@ class bmi_LSTM(Bmi):
             
             self.scale_output()
             
-            self.t += 1
-    
+            #self.t += self._time_step_size
+            self.t += self.get_time_step()
+
+    #------------------------------------------------------------ 
+    # NOT CURRENTLY IN USE
+    # def update_frac(self, time_frac):
+    #     """Update model by a fraction of a time step.
+    #     Parameters
+    #     ----------
+    #     time_frac : float
+    #         Fraction fo a time step.
+    #     """
+    #     if self.verbose > 0:
+    #         print("Warning: This version of the LSTM is designed to make predictions on one hour timesteps.")
+    #     time_step = self.get_time_step()
+    #     self._time_step_size = time_frac * self._time_step_size
+    #     self.update()
+    #     self._time_step_size = time_step
+
+    #------------------------------------------------------------ 
+    # def update_until(self, then):
+    #     """Update model until a particular time.
+    #     Parameters
+    #     ----------
+    #     then : float
+    #         Time to run model until.
+    #     """
+    #     if self.verbose > 0:
+    #         print("then", then)
+    #         print("self.get_current_time()", self.get_current_time())
+    #         print("self.get_time_step()", self.get_time_step())
+    #     n_steps = (then - self.get_current_time()) / self.get_time_step()
+
+    #     for _ in range(int(n_steps)):
+    #         self.update()
+    #     self.update_frac(n_steps - int(n_steps))
+
     #------------------------------------------------------------ 
     def update_until(self, last_update):
-        first_update=self.t
-        for t in range(first_update, last_update):
-            self.update()
+       first_update=self.t
+       for t in range(first_update, last_update):
+           self.update()
     #------------------------------------------------------------    
     def finalize( self ):
         """Finalize model."""
@@ -361,7 +408,7 @@ class bmi_LSTM(Bmi):
     #------------------------------------------------------------ 
     def get_component_name(self):
         """Name of the component."""
-        return self.get_attribute( 'model_name' ) #JG Edit
+        return self.get_attribute( 'model_name' )
 
     #------------------------------------------------------------ 
     def get_input_item_count(self):
@@ -402,10 +449,11 @@ class bmi_LSTM(Bmi):
             Value array.
         """
         if getattr(self, var_name) != self._values[var_name]:
-            print("WARNING: The variable ({}) stored in two locations is inconsistent".format(var_name))
-            print('getattr(self, var_name)', getattr(self, var_name))
-            print('self.surface_runoff_mm', self.surface_runoff_mm)
-            print('self._values[var_name]', self._values[var_name])
+            if self.verbose > 0:
+                print("WARNING: The variable ({}) stored in two locations is inconsistent".format(var_name))
+                print('getattr(self, var_name)', getattr(self, var_name))
+                print('self.surface_runoff_mm', self.surface_runoff_mm)
+                print('self._values[var_name]', self._values[var_name])
         
         return getattr(self, var_name)   # We don't need to store the variable in a dict and as attributes
 #        return self._values[var_name]   # Pick a place to store them and stick with it.
@@ -438,14 +486,12 @@ class bmi_LSTM(Bmi):
         str
             Data type.
         """
-        # JG Edit
         #NJF Need an actual type here...
         return type(self.get_value_ptr(long_var_name)).__name__ #.dtype
     #------------------------------------------------------------ 
     def get_var_grid(self, name):
         
-        # JG Edit
-        # all vars have grid 0 but check if its in names list first
+        # Note: all vars have grid 0 but check if its in names list first
         if name in (self._output_var_names + self._input_var_names):
             return self._var_grid_id  
 
@@ -457,8 +503,7 @@ class bmi_LSTM(Bmi):
     #------------------------------------------------------------ 
     def get_var_location(self, name):
         
-        # JG Edit
-        # all vars have location node but check if its in names list first
+        # Note: all vars have location node but check if its in names list first
         if name in (self._output_var_names + self._input_var_names):
             return self._var_loc
 
@@ -471,28 +516,30 @@ class bmi_LSTM(Bmi):
     #-------------------------------------------------------------------
     def get_start_time( self ):
     
-        return self._start_time #JG Edit
+        return self._start_time
 
     #-------------------------------------------------------------------
     def get_end_time( self ):
 
-        return self._end_time #JG Edit
+        return self._end_time
 
 
     #-------------------------------------------------------------------
     def get_current_time( self ):
 
-        return self.t #JG Edit
+        return self.t
 
     #-------------------------------------------------------------------
     def get_time_step( self ):
 
-        return self.get_attribute( 'time_step_size' ) #JG: Edit
+        return self.get_attribute( 'time_step_size' )
+        #return self._time_step_size
 
     #-------------------------------------------------------------------
     def get_time_units( self ):
 
-        return self.get_attribute( 'time_units' ) 
+        return self.get_attribute( 'time_units' )
+        #return self._time_units
        
     #-------------------------------------------------------------------
     def set_value(self, var_name, value):
@@ -590,7 +637,7 @@ class bmi_LSTM(Bmi):
         dest[:] = data[indices]
         return dest
  
-    # JG Note: remaining grid funcs do not apply for type 'scalar'
+    #   Note: remaining grid funcs do not apply for type 'scalar'
     #   Yet all functions in the BMI must be implemented 
     #   See https://bmi.readthedocs.io/en/latest/bmi.best_practices.html          
     #------------------------------------------------------------ 
@@ -628,8 +675,7 @@ class bmi_LSTM(Bmi):
     #------------------------------------------------------------ 
     def get_grid_rank(self, grid_id):
  
-        # JG Edit
-        # 0 is the only id we have
+         # 0 is the only id we have
         if grid_id == 0: 
             return 1
 
@@ -640,7 +686,6 @@ class bmi_LSTM(Bmi):
     #------------------------------------------------------------ 
     def get_grid_size(self, grid_id):
        
-        # JG Edit
         # 0 is the only id we have
         if grid_id == 0:
             return 1
@@ -652,7 +697,6 @@ class bmi_LSTM(Bmi):
     #------------------------------------------------------------ 
     def get_grid_type(self, grid_id=0):
 
-        # JG Edit
         # 0 is the only id we have        
         if grid_id == 0:
             return 'scalar'
