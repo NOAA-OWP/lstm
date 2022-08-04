@@ -346,6 +346,9 @@ class bmi_LSTM(Bmi):
         elif self.cfg_train['target_variables'][0] == 'QObs(mm/d)':
             self.surface_runoff_mm = (self.lstm_output[0,0,0].numpy().tolist() * self.out_std + self.out_mean) * (1/24)
             
+        # Bound the runoff to zero, as negative values are illogical
+        if self.surface_runoff_mm < 0.0: self.surface_runoff_mm = 0.0
+
         self._values['land_surface_water__runoff_depth'] = self.surface_runoff_mm/1000.0
         setattr(self, 'land_surface_water__runoff_depth', self.surface_runoff_mm/1000.0)
         self.streamflow_cms = self.surface_runoff_mm * self.output_factor_cms
