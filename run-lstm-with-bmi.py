@@ -33,13 +33,20 @@ for precip, temp in zip(list(sample_data['total_precipitation'][3].data),
     model.set_value('atmosphere_water__time_integral_of_precipitation_mass_flux',np.atleast_1d(precip))
     model.set_value('land_surface_air__temperature',np.atleast_1d(temp))
 
-    print(' Temperature and precipitation are set to {:.2f} and {:.2f}'.format(model.get_value('land_surface_air__temperature'), 
-                                                     model.get_value('atmosphere_water__time_integral_of_precipitation_mass_flux')))
+    dest_array = np.zeros(1)
+    model.get_value('land_surface_air__temperature', dest_array)
+    temperature = dest_array[0]
+    model.get_value('atmosphere_water__time_integral_of_precipitation_mass_flux', dest_array)
+    precip = dest_array[0]
+
+    print(' Temperature and precipitation are set to {:.2f} and {:.2f}'.format(temperature, precip))
     #model.update_until(model.t+model._time_step_size)
     model.update()
 
-    print(' Streamflow (cms) at time {} ({}) is {:.2f}'.format(model.get_current_time(), model.get_time_units(),
-                                model.get_value('land_surface_water__runoff_volume_flux')))
+    model.get_value('land_surface_water__runoff_volume_flux', dest_array)
+    runoff = dest_array[0]
+
+    print(' Streamflow (cms) at time {} ({}) is {:.2f}'.format(model.get_current_time(), model.get_time_units(), runoff))
 
     if model.t > 10:
         #print('Stopping the loop')

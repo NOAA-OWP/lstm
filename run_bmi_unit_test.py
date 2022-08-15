@@ -53,7 +53,7 @@ else:
 # initialize()
 try: 
     bmi.initialize(cfg_file)
-    print(" initializing...");
+    print(" initializing...")
     pass_count += 1
 except:
     bmi_except('initialize()')
@@ -281,7 +281,7 @@ for var_name in (bmi.get_output_var_names() + bmi.get_input_var_names()):
     # set_value()
     try:
         this_set_value = -99.0
-        bmi.set_value(var_name, this_set_value)
+        bmi.set_value(var_name, np.array([this_set_value]))
         print ("  set value: " + str(this_set_value))
 
         if var_name_counter == 0: 
@@ -292,7 +292,9 @@ for var_name in (bmi.get_output_var_names() + bmi.get_input_var_names()):
     #-------------------------------------------------------------------
     # get_value()
     try:
-        that_get_value = bmi.get_value(var_name)
+        dest_array = np.zeros(1)
+        bmi.get_value(var_name, dest_array)
+        that_get_value = dest_array[0]
         # check if set_value() passed then see if get/set values match
         if 'set_value()' not in fail_list:
             if that_get_value == this_set_value:
@@ -327,19 +329,20 @@ for var_name in (bmi.get_output_var_names() + bmi.get_input_var_names()):
     # set_value_at_indices()   
     try:
         this_set_value_at_indices = -11.0
-        bmi.set_value_at_indices(var_name,[0], this_set_value_at_indices)
+        bmi.set_value_at_indices(var_name, np.array([0]), np.array([this_set_value_at_indices]))
         #print ("  set value at indices: -9.0, and got value:", bmi.get_value(var_name))
         print ("  set value at indices: " + str(this_set_value_at_indices)) 
         if var_name_counter == 0: 
             pass_count += 1
-    except:
+    except Exception as e:
         bmi_except('set_value_at_indices()')
 
     #-------------------------------------------------------------------
     # get_value_at_indices()    
-    try: 
-        dest0 = np.empty(bmi.get_grid_size(0), dtype=float)
-        that_get_value_at_indices = bmi.get_value_at_indices(var_name, dest0, [0])
+    try:
+        dest_array = np.zeros(1)
+        bmi.get_value_at_indices(var_name, dest_array, np.array([0]))
+        that_get_value_at_indices = dest_array[0]
         # check if set_value_at_indices() passed then see if get/set values match
         if 'set_value_at_indices()' not in fail_list:
             if that_get_value_at_indices == this_set_value_at_indices:
