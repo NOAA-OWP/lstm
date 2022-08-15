@@ -135,6 +135,76 @@ class bmi_LSTM(Bmi):
                                'soil_depth_pelletier','soil_depth_statsgo','soil_porosity',
                                'sand_frac','silt_frac', 'gauge_lat', 'gauge_lon']
 
+    def __getattribute__(self, item):
+        """
+        Customize instance attribute access.
+
+        For those items that correspond to BMI input or output variables (which should be in numpy arrays) and have
+        values that are just a single-element array, deviate from the standard behavior and return the single array
+        element.  Fall back to the default behavior in any other case.
+
+        This supports having a BMI variable be backed by a numpy array, while also allowing the attribute to be used as
+        just a scalar, as it is in many places for this type.
+
+        Parameters
+        ----------
+        item
+            The name of the attribute item to get.
+
+        Returns
+        -------
+        The value of the named item.
+        """
+        # Have these work explicitly (or else loops)
+        if item == '_input_var_names' or item == '_output_var_names':
+            return super(bmi_LSTM, self).__getattribute__(item)
+
+        # By default, for things other than BMI variables, use normal behavior
+        if item not in super(bmi_LSTM, self).__getattribute__('_input_var_names') and item not in super(bmi_LSTM, self).__getattribute__('_output_var_names'):
+            return super(bmi_LSTM, self).__getattribute__(item)
+
+        # Return the single scalar value from any ndarray of size 1
+        value = super(bmi_LSTM, self).__getattribute__(item)
+        if isinstance(value, np.ndarray) and value.size == 1:
+            return value[0]
+        else:
+            return value
+
+    def __setattr__(self, key, value):
+        """
+        Customized instance attribute mutator functionality.
+
+        For those attribute with keys indicating they are a BMI input or output variable (which should be in numpy
+        arrays), wrap any scalar ``value`` as a one-element numpy array and use that in a nested call to the superclass
+        implementation of this function.  In any other cases, just pass the given ``key`` and ``value`` to a nested
+        call.
+
+        This supports automatically having a BMI variable be backed by a numpy array, even if it is initialized using a
+        scalar, while otherwise maintaining standard behavior.
+
+        Parameters
+        ----------
+        key
+        value
+
+        Returns
+        -------
+
+        """
+        # Have these work explicitly (or else loops)
+        if key == '_input_var_names' or key == '_output_var_names':
+            super(bmi_LSTM, self).__setattr__(key, value)
+
+        # Pass thru if value is already an array
+        if isinstance(value, np.ndarray):
+            super(bmi_LSTM, self).__setattr__(key, value)
+        # Override to put scalars into ndarray for BMI input/output variables
+        elif key in self._input_var_names or key in self._output_var_names:
+            super(bmi_LSTM, self).__setattr__(key, np.array([value]))
+        # By default, use normal behavior
+        else:
+            super(bmi_LSTM, self).__setattr__(key, value)
+
     #------------------------------------------------------------
     #------------------------------------------------------------
     # BMI: Model Control Functions
