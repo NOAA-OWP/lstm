@@ -524,8 +524,11 @@ class bmi_LSTM(Bmi):
                 print('getattr(self, var_name)', getattr(self, var_name))
                 print('self.surface_runoff_mm', self.surface_runoff_mm)
                 print('self._values[var_name]', self._values[var_name])
-        
-        return getattr(self, var_name)   # We don't need to store the variable in a dict and as attributes
+
+        # We actually need this function to return the backing array, so bypass override of __getattribute__ (that
+        # extracts scalar) and use the base implementation
+        return super(bmi_LSTM, self).__getattribute__(var_name)
+        #return getattr(self, var_name)   # We don't need to store the variable in a dict and as attributes
 #        return self._values[var_name]   # Pick a place to store them and stick with it.
 
     #-------------------------------------------------------------------
