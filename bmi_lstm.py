@@ -491,20 +491,23 @@ class bmi_LSTM(Bmi):
         return len(self._output_var_names)
 
     #------------------------------------------------------------ 
-    def get_value(self, var_name):
-        """Copy of values.
+    def get_value(self, var_name: str, dest: np.ndarray) -> np.ndarray:
+        """
+        Copy values for the named variable into the provided destination array.
+
         Parameters
         ----------
         var_name : str
             Name of variable as CSDMS Standard Name.
-        dest : ndarray
-            A numpy array into which to place the values.
+        dest : np.ndarray
+            A numpy array into which to copy the variable values.
         Returns
         -------
-        array_like
+        np.ndarray
             Copy of values.
         """
-        return self.get_value_ptr(var_name)
+        dest[:] = self.get_value_ptr(var_name)
+        return dest
 
     #-------------------------------------------------------------------
     def get_value_ptr(self, var_name: str) -> np.ndarray:
@@ -575,7 +578,7 @@ class bmi_LSTM(Bmi):
     #------------------------------------------------------------ 
     def get_var_itemsize(self, name):
 #        return np.dtype(self.get_var_type(name)).itemsize
-        return np.array(self.get_value(name)).itemsize
+        return self.get_value_ptr(name).itemsize
 
     #------------------------------------------------------------ 
     def get_var_location(self, name):
@@ -619,56 +622,37 @@ class bmi_LSTM(Bmi):
         #return self._time_units
        
     #-------------------------------------------------------------------
-    def set_value(self, var_name, value):
+    def set_value(self, var_name: str, values: np.ndarray):
         """Set model values.
 
         Parameters
         ----------
         var_name : str
             Name of variable as CSDMS Standard Name.
-        src : array_like
+        values : np.ndarray
               Array of new values.
         """
-        try: 
-            #NJF From NGEN, `vlaue` is a singleton array
-            setattr( self, var_name, value[0] )
-        
-            # jmframe: this next line is basically a duplicate. 
-            # I guess we should stick with the attribute names instead of a dictionary approach. 
-            self._values[var_name] = value[0]
-        # JLG 03242022: this isn't really an "error" block as standalone considers value as scalar?
-        except TypeError:
-            setattr( self, var_name, value )
-        
-            # jmframe: this next line is basically a duplicate. 
-            # I guess we should stick with the attribute names instead of a dictionary approach. 
-            self._values[var_name] = value
+        internal_array = self.get_value_ptr(var_name)
+        #self.get_value_ptr(var_name)[:] = values
+        internal_array[:] = values
 
     #------------------------------------------------------------ 
-    def set_value_at_indices(self, name, inds, src):
-        """Set model values at particular indices.
+    def set_value_at_indices(self, var_name: str, inds: np.ndarray, src: np.ndarray):
+        """
+        Set model values at particular indices.
+
         Parameters
         ----------
         var_name : str
             Name of variable as CSDMS Standard Name.
-        src : array_like
+        inds : np.ndarray
+            Array of corresponding indices into which to copy the values within ``src``.
+        src : np.ndarray
             Array of new values.
-        indices : array_like
-            Array of indices.
         """
-        # JG Note: TODO confirm this is correct. Get/set values ~=
-#        val = self.get_value_ptr(name)
-#        val.flat[inds] = src
-
-        #JMFrame: chances are that the index will be zero, so let's include that logic
-        if np.array(self.get_value(name)).flatten().shape[0] == 1:
-            self.set_value(name, src)
-        else:
-            # JMFrame: Need to set the value with the updated array with new index value
-            val = self.get_value_ptr(name)
-            for i in inds.shape:
-                val.flatten()[inds[i]] = src[i]
-            self.set_value(name, val)
+        internal_array = self.get_value_ptr(var_name)
+        for i in range(inds.shape[0]):
+            internal_array[inds[i]] = src[i]
 
     #------------------------------------------------------------ 
     def get_var_nbytes(self, var_name):
@@ -693,25 +677,27 @@ class bmi_LSTM(Bmi):
             #must be scalar
             return self.get_var_itemsize(var_name)
     #------------------------------------------------------------ 
-    def get_value_at_indices(self, var_name, dest, indices):
-        """Get values at particular indices.
+    def get_value_at_indices(self, var_name: str, dest: np.ndarray, indices: np.ndarray) -> np.ndarray:
+        """
+        Get values at particular indices.
+
         Parameters
         ----------
         var_name : str
             Name of variable as CSDMS Standard Name.
-        dest : ndarray
+        dest : np.ndarray
             A numpy array into which to place the values.
         indices : array_like
             Array of indices.
         Returns
         -------
-        array_like
+        np.ndarray
             Values at indices.
         """
-        #NJF This must copy into dest!!!
-        #Convert to np.array in case of singleton/non numpy type, then flatten
-        data = np.array(self.get_value(var_name)).flatten()
-        dest[:] = data[indices]
+        original: np.ndarray = self.get_value_ptr(var_name)
+        for i in range(indices.shape[0]):
+            value_index = indices[i]
+            dest[i] = original[value_index]
         return dest
  
     #   Note: remaining grid funcs do not apply for type 'scalar'
