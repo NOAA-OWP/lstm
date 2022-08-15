@@ -507,15 +507,19 @@ class bmi_LSTM(Bmi):
         return self.get_value_ptr(var_name)
 
     #-------------------------------------------------------------------
-    def get_value_ptr(self, var_name):
-        """Reference to values.
+    def get_value_ptr(self, var_name: str) -> np.ndarray:
+        """
+        Get reference to values.
+
+        Get the backing reference - i.e., the backing numpy array - for the given variable.
+
         Parameters
         ----------
         var_name : str
             Name of variable as CSDMS Standard Name.
         Returns
         -------
-        array_like
+        np.ndarray
             Value array.
         """
         if getattr(self, var_name) != self._values[var_name]:
