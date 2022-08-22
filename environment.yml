@@ -16,3 +16,4 @@ dependencies:
   - pytorch
   - ruamel.yaml
   - xarray=0.14.0
+  - llvm-openmp=10.0.0

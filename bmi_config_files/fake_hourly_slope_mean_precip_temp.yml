@@ -1,6 +1,6 @@
 # This is the configuration file for the trained LSTM. 
 # This is required to run the model, but should not be modified.
-train_cfg_file: ./trained_neuralhydrology_models/hourly_slope_mean_precip_temp/config.yml
+train_cfg_file: ../trained_neuralhydrology_models/hourly_slope_mean_precip_temp/config.yml
 
 # Meta data about how to run the model
 time_step: '1 hour'
