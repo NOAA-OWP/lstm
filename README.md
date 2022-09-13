@@ -28,9 +28,9 @@ for four USGS gauges:
 
 Note that the data found in this repository are simply examples. The LSTM model can be run on any watershed, provided the necessary static attributes and dynamic forcings. The full list of attributes differs depending on the trained LSTM model chosen. Example files (`*.yml`) with the required attributes are located in the [`./bmi_config_files`](./bmi_config_files)directory. The attributes required for these configuration files can be found in the [`camels_attributes_v2.0/`](./data/camels_attributes_v2.0) data directory for catchments in the CAMELS dataset or estimated from [Addor, N., A.J. Newman, N. Mizukami, and M.P. Clark. 2017. The CAMELS data set: catchment attributes and meteorology for large-sample studies. Hydrol. Earth Syst. Sci. 21: 5293-5313. https://doi.org/10.5194/hess-21-5293-2017](https://doi.org/10.5194/hess-21-5293-2017).  
 
-
 ## Configurations
 The LSTM model requires a configuration file for specification of forcings, weights, scalers, run options (like warmup period), runtime period, static basin parameters and model time step. This configuration file needs to be generated for any specific application of the LSTM model.
+
 This LSTM model will run on any basin with the required inputs; however, it was trained on 500+ catchments from the CAMELS dataset [CAMELS dataset](https://ral.ucar.edu/solutions/products/camels) across the contiguous United States (CONUS) and is best suited to this CONUS region, for now. The place to set up the run for a specific configuration for a specific basin is in the BMI (`*.yml`) [configuration file](./bmi_config_files/). Ideally, the LSTM trained with all forcings and all static attributes will be used, but we've included a few example LSTMs that have limited static attributes and forcings, in the event that the total set of forcings and attributes are not available. For explanations of how the LSTM might perform with limited inputs and on ungauged basins, see [Frederik Kratzert et al., Toward Improved Predictions in Ungauged Basins: Exploiting the Power of Machine Learning, Water Resources Research](https://doi.org/10.1029/2019WR026065). To set up a specific configuration for a specific basin, change the appropriate [BMI configuration file](./bmi_config_files/). 
 
 ## Trained LSTM Model
@@ -42,14 +42,19 @@ Included in this directory are three samples of trained LSTM models:
 These three models are trained with different inputs, but they all will run with the same [BMI](./src/bmi_lstm.py) and [LSTM](./src/nextgen_cuda_lstm.py) model.
 
 ## Dependencies
-Running this model requires python and the libraries listed in the [environment file](./environment.yml). This example uses [Anaconda](https://www.anaconda.com), but it isn’t a requirement. You can opt to set up a python environment without it by using the libraries specified in the `environment.yml` file.    
-Notice that `xarray` has a specific version defined in the environment file (0.14.0). The newer versions are incompatible with the current example files, for some reason that will be fixed at some point, so for now, make sure to use this specific version of Xarray.  
-If you have Anaconda, you can easily create an environment (`bmi_lstm`) with the required libraries using:  `conda env create -f environment.yml`. 
+Running this model requires python and the libraries listed in the [environment file](./environment.yml). This example uses [Anaconda](https://www.anaconda.com), but it isn’t a requirement. You can opt to set up a python environment without it by using the libraries specified in the `environment.yml` file. If you have Anaconda, you can easily create an environment (`bmi_lstm`) with the required libraries using:  `conda env create -f environment.yml`. 
+
+Notice that `xarray` has a specific version defined in the environment file (0.14.0) as the newer versions are incompatible with the current example files. The same goes for `llvm-openmp`, which we set to version 10.0.0 in the dependencies. On some Mac Anaconda releases, users received an error message stating `OMP: Error #15: Initializing libiomp5.dylib, but found libomp.dylib already initialized.` If you get this message, please make sure you have ` - llvm-openmp=10.0.0` set in your environment.yml file. More information on different solutions to resolving this issue can be found [here](https://stackoverflow.com/questions/62903775/intel-mkl-error-using-conda-and-matplotlib-library-not-loaded-rpath-libiomp5) and [here](https://stackoverflow.com/questions/62903775/intel-mkl-error-using-conda-and-matplotlib-library-not-loaded-rpath-libiomp5). 
+
+If at any point you want to see the full list of the packages and dependencies in your activated `bmi_lstm` environment, run `conda env export > environment_<rename>.yml` replacing `<rename>` with your text of choice to avoid overwriting the original `environment.yml` file.
 
 ## Running BMI LSTM
 This section goes through an example of running the LSTM with the BMI interface. These are only examples. If a user wants to run the LSTM with BMI, then these are a jumping off point. These examples were developed to provide a quick testing ground for running the LSTM with the [Nextgen framework](https://github.com/NOAA-OWP/ngen).  
+
 Note that this code assumes the use of the `bmi_lstm` environment for Anaconda. To load this environment, enter `conda activate bmi_lstm`.   
+
 Be aware that these scripts are examples and may require changes for your use case. For example, the Python script was developed for the trained LSTM model with limited attributes (`hourly_slope_mean_precip_temp`) and the for loop will need to be changed if running with the LSTM model that was trained with all attributes (an example of this code can be found in the [Jupyter Notebook](./notebooks/run_lstm_bmi.ipynb).
+
 Running these examples of trained LSTM-based hydrological models require these general steps:  
 1.  Retrieve atmospheric forcing data that match those included in the trained model
 2.  Retrieve the catchment attributes that match those included in the trained model
@@ -67,6 +72,7 @@ The [Jupyter Notebook](./notebooks/run_lstm_bmi.ipynb) and a Python script [`run
 7. And finally you should finalize the model instance: `model.finalize()`  
 
 This repository contains an example file with weather and observed streamflow data for four catchments [here](./data/usgs-streamflow-nldas_hourly.nc). Note that the observed streamflow data isn’t necessary to run the model, but is useful for comparison purposes.
+
 Also contained within this repository are catchment attributes for all CAMELS catchments along with two example configuration files: one for the limited data case and one for the full set of attributes.   
 
 To run the LSTM model for another catchment, slight modifications to this code will be needed:
@@ -91,5 +97,4 @@ The test script [`run_bmi_unit_test.py`](./src/run_bmi_unit_test.py) fully exami
 
 To run lstm-bmi unit test, from the `/src` directory, simply call `python ./run_bmi_unit_test.py` within the active conda environment `bmi_lstm`, as outlined in [Running BMI LSTM](#running-bmi-lstm).
 
-Recall that BMI guides interoperability for model-coupling, where model components (i.e. inputs and outputs) are easily shared amongst each other.
-When testing outside of a true framework, we consider the behavior of BMI function definitions, rather than any expected values they produce.
+Recall that BMI guides interoperability for model-coupling, where model components (i.e. inputs and outputs) are easily shared amongst each other. When testing outside of a true framework, we consider the behavior of BMI function definitions, rather than any expected values they produce.
