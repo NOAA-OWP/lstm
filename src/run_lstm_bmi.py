@@ -9,8 +9,8 @@ from netCDF4 import Dataset
 import bmi_lstm
 
 # Define primary bmi config and input data file paths
-bmi_cfg_file=Path('./bmi_config_files/01022500_hourly_all_attributes_forcings.yml')
-sample_data_file = Path('./data/usgs-streamflow-nldas_hourly.nc')
+bmi_cfg_file=Path('./../bmi_config_files/01022500_hourly_all_attributes_forcings.yml')
+sample_data_file = Path('./../data/usgs-streamflow-nldas_hourly.nc')
 
 # creating an instance of an LSTM model
 print('Creating an instance of an BMI_LSTM model object')
@@ -25,7 +25,6 @@ print('Gathering input data')
 sample_data = Dataset(sample_data_file, 'r')
 
 # Now loop through the inputs, set the forcing values, and update the model
-#print('Now loop through the inputs, set the forcing values, and update the model')
 print('Set values & update model for number of timesteps = 10')
 for precip, temp in zip(list(sample_data['total_precipitation'][3].data),
                         list(sample_data['temperature'][3].data)):

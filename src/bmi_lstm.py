@@ -21,13 +21,15 @@ class bmi_LSTM(Bmi):
     def __init__(self):
         """Create a Bmi LSTM model that is ready for initialization."""
         super(bmi_LSTM, self).__init__()
+        self._name = "LSTM for Next Generation NWM"
         self._values = {}
         self._var_loc = "node"
         self._var_grid_id = 0
+        self._var_grid_type = "scalar"
         self._start_time = 0
         self._end_time = np.finfo("d").max
-        #self._time_units = "s"
-        #self._time_step_size = 3600 # in units of seconds.
+        self._time_units = "hour"
+        self._time_step_size = 1
         
         # Note: these need to be initialized here as scale_output() called in update()
         self.streamflow_cms = 0.0
@@ -37,16 +39,11 @@ class bmi_LSTM(Bmi):
     #----------------------------------------------
     # Required, static attributes of the model
     #----------------------------------------------
+    # Note: not currently in use
     _att_map = {
         'model_name':         'LSTM for Next Generation NWM',
         'version':            '1.0',
-        'author_name':        'Jonathan Martin Frame',
-        'grid_type':          'scalar', 
-        'time_step_size':      1,       
-        #'time_step_type':     'donno', #unused  
-        #'step_method':        'none',  #unused
-        #'time_units':         '1 hour' #NJF Have to drop the 1 for NGEN to recognize the unit
-        'time_units':         'hour' }
+        'author_name':        'Jonathan Martin Frame' }
 
     #---------------------------------------------
     # Input variable names (CSDMS standard names)
@@ -229,7 +226,7 @@ class bmi_LSTM(Bmi):
         for var_name in list(self._var_name_units_map.keys()):
             # ---------- All the variables are single values ------------------#
             # ---------- so just set to zero for now.        ------------------#
-            self._values[var_name] = 0
+            #self._values[var_name] = 0
             setattr( self, var_name, 0 )
         
         # -------------- Read in the BMI configuration -------------------------#
@@ -260,7 +257,7 @@ class bmi_LSTM(Bmi):
         default_state_dict = self.lstm.state_dict()
 
         # Trained model weights from Neuralhydrology.
-        trained_model_file = self.cfg_train['run_dir'] / 'model_epoch{}.pt'.format(str(self.cfg_train['epochs']).zfill(3))
+        trained_model_file = '..' / self.cfg_train['run_dir'] / 'model_epoch{}.pt'.format(str(self.cfg_train['epochs']).zfill(3))
         trained_state_dict = torch.load(trained_model_file, map_location=torch.device('cpu'))
 
         # Changing the name of the head weights, since different in NH
@@ -306,44 +303,43 @@ class bmi_LSTM(Bmi):
             self.t += self.get_time_step()
 
     #------------------------------------------------------------ 
-    # NOT CURRENTLY IN USE
-    # def update_frac(self, time_frac):
-    #     """Update model by a fraction of a time step.
-    #     Parameters
-    #     ----------
-    #     time_frac : float
-    #         Fraction fo a time step.
-    #     """
-    #     if self.verbose > 0:
-    #         print("Warning: This version of the LSTM is designed to make predictions on one hour timesteps.")
-    #     time_step = self.get_time_step()
-    #     self._time_step_size = time_frac * self._time_step_size
-    #     self.update()
-    #     self._time_step_size = time_step
+    def update_frac(self, time_frac):
+        """Update model by a fraction of a time step.
+        Parameters
+        ----------
+        time_frac : float
+            Fraction fo a time step.
+        """
+        if self.verbose > 0:
+            print("Warning: This version of the LSTM is designed to make predictions on one hour timesteps.")
+        time_step = self.get_time_step()
+        self._time_step_size = time_frac * self._time_step_size
+        self.update()
+        self._time_step_size = time_step
 
     #------------------------------------------------------------ 
-    # def update_until(self, then):
-    #     """Update model until a particular time.
-    #     Parameters
-    #     ----------
-    #     then : float
-    #         Time to run model until.
-    #     """
-    #     if self.verbose > 0:
-    #         print("then", then)
-    #         print("self.get_current_time()", self.get_current_time())
-    #         print("self.get_time_step()", self.get_time_step())
-    #     n_steps = (then - self.get_current_time()) / self.get_time_step()
+    def update_until(self, then):
+        """Update model until a particular time.
+        Parameters
+        ----------
+        then : float
+            Time to run model until.
+        """
+        if self.verbose > 0:
+            print("then", then)
+            print("self.get_current_time()", self.get_current_time())
+            print("self.get_time_step()", self.get_time_step())
+        n_steps = (then - self.get_current_time()) / self.get_time_step()
 
-    #     for _ in range(int(n_steps)):
-    #         self.update()
-    #     self.update_frac(n_steps - int(n_steps))
+        for _ in range(int(n_steps)):
+            self.update()
+        self.update_frac(n_steps - int(n_steps))
 
     #------------------------------------------------------------ 
-    def update_until(self, last_update):
-       first_update=self.t
-       for t in range(first_update, last_update):
-           self.update()
+    # def update_until(self, last_update):
+    #    first_update=self.t
+    #    for t in range(first_update, last_update):
+    #        self.update()
     #------------------------------------------------------------    
     def finalize( self ):
         """Finalize model."""
@@ -376,7 +372,7 @@ class bmi_LSTM(Bmi):
         self.all_lstm_inputs.extend(self.cfg_train['static_attributes'])
         
         # Scaler data from the training set. This is used to normalize the data (input and output).
-        with open(self.cfg_train['run_dir'] / 'train_data' / 'train_data_scaler.p', 'rb') as fb:
+        with open('..' / self.cfg_train['run_dir'] / 'train_data' / 'train_data_scaler.p', 'rb') as fb:
             self.train_data_scaler = pickle.load(fb)
 
     #------------------------------------------------------------ 
@@ -402,7 +398,7 @@ class bmi_LSTM(Bmi):
         
         # TODO: Choose to store values in dictionary or not.
         self.input_array = np.array([getattr(self, self._var_name_map_short_first[x]) for x in self.all_lstm_inputs])
-        self.input_array = np.array([self._values[self._var_name_map_short_first[x]] for x in self.all_lstm_inputs])
+        #self.input_array = np.array([self._values[self._var_name_map_short_first[x]] for x in self.all_lstm_inputs])
         
         self.input_array_scaled = (self.input_array - self.input_mean) / self.input_std 
         self.input_tensor = torch.tensor(self.input_array_scaled)
@@ -416,11 +412,16 @@ class bmi_LSTM(Bmi):
         elif self.cfg_train['target_variables'][0] == 'QObs(mm/d)':
             self.surface_runoff_mm = (self.lstm_output[0,0,0].numpy().tolist() * self.out_std + self.out_mean) * (1/24)
             
-        self._values['land_surface_water__runoff_depth'] = self.surface_runoff_mm/1000.0
+        # Bound the runoff to zero or obs, as negative values are illogical
+        #if self.surface_runoff_mm < 0.0: self.surface_runoff_mm = 0.0
+        #np.maximum( self.surface_runoff_mm, 0.0, self.surface_runoff_mm)
+        self.surface_runoff_mm = max(self.surface_runoff_mm,0.0)
+
+        #self._values['land_surface_water__runoff_depth'] = self.surface_runoff_mm/1000.0
         setattr(self, 'land_surface_water__runoff_depth', self.surface_runoff_mm/1000.0)
         self.streamflow_cms = self.surface_runoff_mm * self.output_factor_cms
 
-        self._values['land_surface_water__runoff_volume_flux'] = self.streamflow_cms
+        #self._values['land_surface_water__runoff_volume_flux'] = self.streamflow_cms
         setattr(self, 'land_surface_water__runoff_volume_flux', self.streamflow_cms)
 
     #-------------------------------------------------------------------
@@ -443,7 +444,7 @@ class bmi_LSTM(Bmi):
                 setattr(self, long_var_name, self.cfg_bmi[attribute])
                 
                 # and this is just in case. _values dictionary is in the example
-                self._values[long_var_name] = self.cfg_bmi[attribute]
+                #self._values[long_var_name] = self.cfg_bmi[attribute]
     
     #---------------------------------------------------------------------------- 
     def initialize_forcings(self):
@@ -456,12 +457,13 @@ class bmi_LSTM(Bmi):
     #-------------------------------------------------------------------
     #-------------------------------------------------------------------
     
-    def get_attribute(self, att_name):
+    # Note: not currently using _att_map{}
+    # def get_attribute(self, att_name):
     
-        try:
-            return self._att_map[ att_name.lower() ]
-        except:
-            print(' ERROR: Could not find attribute: ' + att_name)
+    #     try:
+    #         return self._att_map[ att_name.lower() ]
+    #     except:
+    #         print(' ERROR: Could not find attribute: ' + att_name)
 
     #--------------------------------------------------------
     # Note: These are currently variables needed from other
@@ -478,7 +480,8 @@ class bmi_LSTM(Bmi):
     #------------------------------------------------------------ 
     def get_component_name(self):
         """Name of the component."""
-        return self.get_attribute( 'model_name' )
+        #return self.get_attribute( 'model_name' )
+        return self._name
 
     #------------------------------------------------------------ 
     def get_input_item_count(self):
@@ -525,18 +528,16 @@ class bmi_LSTM(Bmi):
         np.ndarray
             Value array.
         """
-        if getattr(self, var_name) != self._values[var_name]:
-            if self.verbose > 0:
-                print("WARNING: The variable ({}) stored in two locations is inconsistent".format(var_name))
-                print('getattr(self, var_name)', getattr(self, var_name))
-                print('self.surface_runoff_mm', self.surface_runoff_mm)
-                print('self._values[var_name]', self._values[var_name])
+        # if getattr(self, var_name) != self._values[var_name]:
+        #     if self.verbose > 0:
+        #         print("WARNING: The variable ({}) stored in two locations is inconsistent".format(var_name))
+        #         print('getattr(self, var_name)', getattr(self, var_name))
+        #         print('self.surface_runoff_mm', self.surface_runoff_mm)
+        #         print('self._values[var_name]', self._values[var_name])
 
         # We actually need this function to return the backing array, so bypass override of __getattribute__ (that
         # extracts scalar) and use the base implementation
         return super(bmi_LSTM, self).__getattribute__(var_name)
-        #return getattr(self, var_name)   # We don't need to store the variable in a dict and as attributes
-#        return self._values[var_name]   # Pick a place to store them and stick with it.
 
     #-------------------------------------------------------------------
     #-------------------------------------------------------------------
@@ -612,14 +613,14 @@ class bmi_LSTM(Bmi):
     #-------------------------------------------------------------------
     def get_time_step( self ):
 
-        return self.get_attribute( 'time_step_size' )
-        #return self._time_step_size
+        #return self.get_attribute( 'time_step_size' )
+        return self._time_step_size
 
     #-------------------------------------------------------------------
     def get_time_units( self ):
 
-        return self.get_attribute( 'time_units' )
-        #return self._time_units
+        #return self.get_attribute( 'time_units' )
+        return self._time_units
        
     #-------------------------------------------------------------------
     def set_value(self, var_name: str, values: np.ndarray):
