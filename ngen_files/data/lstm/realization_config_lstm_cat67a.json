@@ -1,0 +1,49 @@
+{
+    "global": {
+      "formulations":
+      [
+        {
+          "name": "bmi_python",
+          "params": {
+              "python_type": "lstm.bmi_LSTM",
+              "model_type_name": "bmi_LSTM",
+              "init_config": "./extern/lstm_py/bmi_config_files/cat-67.yml",
+              "main_output_variable": "land_surface_water__runoff_volume_flux",
+              "uses_forcing_file": false,
+              "variables_names_map" : {
+                  "streamflow_cms": "land_surface_water__runoff_volume_flux"}
+        }
+      }
+      ],
+        "forcing": {
+            "file_pattern": ".*{{ID}}.*.csv",
+            "path": "../forcing/"
+        }
+    },
+    "time": {
+        "start_time": "2015-12-01 00:00:00",
+        "end_time": "2015-12-30 23:00:00",
+        "output_interval": 3600
+    },
+    "catchments": {
+        "cat-67":
+        {
+          "formulations": [
+            { "name": "bmi_python",
+              "params": {
+                "pytorch_model_path": "./data/lstm/sugar_creek_trained.pt",
+                "normalization_path": "./data/lstm/input_scaling.csv",
+                "initial_state_path": "./data/lstm/initial_states.csv",
+                "latitude": 46.5393476,
+                "longitude": -69.3170574,
+                "area_square_km": 10.09406319,
+                "useGPU": false
+            }
+          }
+        ],
+            "forcing": {
+                "path": "./data/forcing/cat-67_2015-12-01 00_00_00_2015-12-30 23_00_00.csv"
+            }
+        }
+      }
+}
