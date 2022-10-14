@@ -1,0 +1,54 @@
+S.D. Peckham
+September 8, 2022
+See:  https://stackoverflow.com/questions/8659382/
+      downloading-an-entire-s3-bucket
+
+-----------------------------------------------
+How to Download Many Files from AWS S3 Bucket
+-----------------------------------------------
+
+1.  Start the Cyberduck app.
+
+2.  Server:  s3.amazonaws.com       Port: 443
+    URL:     https://s3.amazonaws.com
+    Access Key ID:   scottp
+    Password:        ******
+
+3.  It will then prompt for your AWS "Access Key ID" and
+    "Secret Access Key".  (Stored in Keeper)
+
+4.  Browse to:
+    formulations-dev > HUC01 > LSTM
+    Each file in the LSTM folder is a YML config file for a
+    particular HUC01 catchment (e.g. cat-67.yml), with just
+    a few lines of parameter settings.
+
+5.  If you try to list the files in LSTM folder (i.e. cat-*.yml),
+    it will ask about listing over 5000, then over 10,000 files.
+    You can say Yes.  But you don't need to list the files, you
+    can copy the whole folder (by dragging to your desktop).
+    This set of YML files is not very big, but still takes a
+    while (roughly 10 minutes) to download them all.
+    Total number of files:  14,633
+    Total file size:        4,630,899 B (4.6 MB)
+
+6.  Copied this LSTM folder to:
+        ngen/extern/lstm_py/bmi_config_files/HUC01
+
+7.  The files: catchment_data.geojson and nexus_data.geojson can
+    be found in:  formulations-dev > HUC01.  They are also needed.
+    Copied them into:  ngen/data
+    with the new names:
+        catchment_data_HUC01.geojson
+        nexus_data_HUC01.geojson
+
+    NOTE:  Each ID (e.g. "cat-27") that appears in:
+        ngen/data/lstm/realization_config_lstm.json
+    must have a corresponding entry in these two files.
+    (So older versions of these geojson files may not work.)
+    
+
+
+
+
+ 
