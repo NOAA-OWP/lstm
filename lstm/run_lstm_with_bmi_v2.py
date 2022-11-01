@@ -1,26 +1,23 @@
 
 import numpy as np
 import torch
-# from torch import nn   # this is not used
 # import data_tools
 from pathlib import Path
 from netCDF4 import Dataset
 
 # This is the BMI LSTM that we will be running
-############  import lstm.bmi_lstm as bmi_lstm
+import lstm.bmi_lstm as bmi_lstm
 
 USE_PATH = True  # (SDP; also set in bmi_lstm.py.)
-run_dir = './extern/lstm_py/'  # (SDP)
-# run_dir = './'
-cfg_file  = run_dir + 'bmi_config_files/01022500_A.yml'
+# run_dir = './extern/lstm_py/'  # (SDP)
+run_dir = './'
+cfg_file  = run_dir + 'bmi_config_files/01022500_hourly_slope_mean_precip_temp.yml'
 data_file = run_dir + 'data/usgs-streamflow-nldas_hourly.nc'
     
 def execute():
     # creating an instance of an LSTM model
     print('Creating an instance of an BMI_LSTM model object...')
-    model = bmi_LSTM()
-    ### model = bmi_lstm.bmi_LSTM()
-    ### model = bmi_lstm.bmi_lstm()
+    model = bmi_lstm.bmi_LSTM()
 
     # Initializing the BMI
     print('Initializing the BMI...')
