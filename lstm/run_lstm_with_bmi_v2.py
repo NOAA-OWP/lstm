@@ -37,12 +37,19 @@ def execute():
         
     # Now loop through the inputs, set the forcing values, and update the model
     print('Loop through the inputs, set the forcing values, and update the model...')
-    for precip, temp in zip(list(sample_data['total_precipitation'][3].data),
-                            list(sample_data['temperature'][3].data)):
+    precip_data = sample_data['total_precipitation'][3].data
+    n_forcings = precip_data.size
+    temp_data = sample_data['temperature'][3].data
+
+    for k in range(n_forcings):
+    #for precip, temp in list(),
+        
+        precip = precip_data[k]
+        temp = temp_data[k]                    
         model.set_value('atmosphere_water__liquid_equivalent_precipitation_rate',precip)
         model.set_value('land_surface_air__temperature',temp)
-        #### print('  temperature and precipitation are set to {:.2f} and {:.2f}'.format(model.temperature, model.total_precipitation))
-        print('  temperature and precipitation are set to {:.2f} and {:.2f}'.format(model.temperature, model.precip))
+        print('  temperature and precipitation are set to {:.2f} and {:.2f}'.format(model.temperature, model.total_precipitation))
+        #print('  temperature and precipitation are set to {:.2f} and {:.2f}'.format(model.temperature, model.precip))
         model.update()
         print('  streamflow (CMS) at time {} is {:.2f}'.format(model.t, model.streamflow_cms))
         #### print('  streamflow (CFS) at time {} is {:.2f}'.format(model.t, model.streamflow_cfs))
