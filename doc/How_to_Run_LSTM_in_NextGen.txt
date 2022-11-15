@@ -128,10 +128,12 @@ Note: It appears that the "Pointer" error reported at the end is a NextGen probl
 
 (2) Copy this LSTM folder to:
         ngen/extern/lstm_py/bmi_config_files/HUC01
+    or
+        ngen/data/lstm/yml_files/HUC01
 
 (3) Download the files "catchment_data.geojson" and "nexus_data.geojson" from:
     formulations-dev > HUC01
-    Copy them into:  ngen/data  with the new names:
+    Copy them into:  ngen/data/lstm/spatial  with the new names:
         catchment_data_HUC01.geojson
         nexus_data_HUC01.geojson
 
