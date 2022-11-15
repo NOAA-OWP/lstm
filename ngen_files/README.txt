@@ -9,7 +9,10 @@ This subfolder, "ngen_files", contains files that should be copied into
 the ngen repo tree (or project folder), into the indicated subfolders.
 This will allow the new LSTM Python package to be run from within NextGen.
 
-The "ngen_files folder" contains:
-(1) "realization config" files for NextGen in data/lstm folder
-(2) catchment and nexus data GeoJSON files for HUCO1, CAMELS-test, etc.
-(3) forcing data for testing HUC01, CAMELS-test, etc. in data/forcing
+The "ngen_files/data/lstm" folder contains:
+(1) "realization config" files for NextGen in "rc_files" folder
+(2) catchment and nexus data GeoJSON files in "spatial" folder,
+    including ones for HUCO1, CAMELS-test, etc.
+(3) LSTM model config files in the "yml_files" folder.
+    Some of these are also in lstm_py/bmi_config_files.
+(4) forcing data for testing HUC01, CAMELS-test, etc. in data/forcing
