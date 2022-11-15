@@ -1,0 +1,35 @@
+time_step: '1 hour'
+initial_state: 'zero'
+basin_name: 'Narraguagus River at Cherryfield, Maine'
+basin_id: '01022500'
+area_sqkm: 620.38
+lat: 44.60797
+lon: -67.93524
+train_cfg_file: ./trained_neuralhydrology_models/hourly_all_attributes_and_forcings/config.yml
+verbose: 0
+elev_mean: 92.68
+slope_mean: 17.79072
+area_gages2: 573.60000
+frac_forest: 0.9232
+lai_max: 4.87139
+lai_diff: 3.74669
+gvf_max: 0.863936
+gvf_diff: 0.337712
+soil_depth_pelletier: 17.412808
+soil_depth_statsgo: 1.491846
+soil_porosity: 0.415905
+soil_conductivity: 2.375005
+max_water_content: 0.626229
+sand_frac: 59.390156
+silt_frac: 28.080937
+clay_frac: 12.037646
+carbonate_rocks_frac: 0
+geol_permeability: -14.2138
+p_mean: 3.60813
+pet_mean: 2.11926
+aridity: 0.587356
+frac_snow: 0.245259
+high_prec_freq: 20.55
+high_prec_dur: 1.20528
+low_prec_freq: 233.65
+low_prec_dur: 3.66223

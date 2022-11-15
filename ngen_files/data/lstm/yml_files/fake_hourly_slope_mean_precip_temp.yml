@@ -1,0 +1,20 @@
+# This is the configuration file for the trained LSTM. 
+# This is required to run the model, but should not be modified.
+train_cfg_file: ./trained_neuralhydrology_models/hourly_slope_mean_precip_temp/config.yml
+
+# Meta data about how to run the model
+time_step: '1 hour'
+initial_state: 'zero'
+basin_name: 'FAKE BASIN'
+basin_id: 'fake_id'
+
+# This is required for determining what is printed out
+verbose: 0
+
+# STATIC Attributes
+## Required to run the LSTM
+area_sqkm: 100.0
+lat: 35.0
+lon: -100.0
+elev_mean: 100.0
+slope_mean: 25.0
