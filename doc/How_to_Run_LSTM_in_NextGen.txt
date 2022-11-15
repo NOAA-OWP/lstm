@@ -1,62 +1,43 @@
 S.D. Peckham
 September 12, 2022
+November 15, 2022 (updated)
 
 -------------------------------------------
  Steps to run the LSTM Package in NextGen
 -------------------------------------------
-(1) Set PYTHONPATH via:
-       (base) % export PYTHONPATH='/Users/peckhams/Dropbox/GitHub/ngen/extern/lstm_py'
-       (base) % echo $PYTHONPATH
+(1) Download the new LSTM Python package (branch) from:
+    https://github.com/NOAA-OWP/lstm/tree/lstm_package
+
+(2) Copy the lstm_package folder into the ngen project tree/repo at:
+    ngen/extern/lstm_package
+
+(3) Copy the files in the "ngen_files" subfolder into the corresponding
+    locations in the ngen project tree (e.g. into ngen/data/lstm, etc.)
+
+(4) Open a terminal window and set PYTHONPATH (for this session).
+    For example:
+    (base) % export PYTHONPATH='/Users/peckhams/Dropbox/GitHub/ngen/extern/lstm_py'
+    (base) % echo $PYTHONPATH
             /Users/peckhams/Dropbox/GitHub/ngen/extern/lstm_py
-    Now it doesn't matter if you activate a virtual environment.  ##### what about dependencies?
-    Notice that as a result of setting PYTHONPATH, if you now type:
-       (base) % pip list
-    you will see "lstm" in the list of packages.
 
-(2)  Edit the file:  ngen/data/lstm/realization_config_lstm_cat67a.json, as follows:
-     If ngen/extern/lstm_py/lstm/__init__.py is empty, then set:
-         "python_type": "lstm.bmi_lstm.bmi_LSTM",
-         "model_type_name": "bmi_LSTM",
-     If ngen/extern/lstm_py/lstm/__init__.py contains the line:
-         from .bmi_lstm import bmi_LSTM
-     then set:
-         "python_type": "lstm.bmi_LSTM",
-         "model_type_name": "bmi_LSTM",
+    Note:  You may also need to install pytorch, or include its path in PYTHONPATH.
+    Note:  Virtual environments in NextGen don't work yet.
+    Note:  As a result of setting PYTHONPATH, if you now type:
+           (base) % pip list
+           you will see "lstm" in the list of packages.
+    Note:  You can check that PYTHONPATH is set correctly via:
+           (base) % python
+           >>> import lstm
 
-     Set:
-         "init_config": "./extern/lstm_py/bmi_config_files/cat-67.yml",
-         "main_output_variable": "land_surface_water__runoff_volume_flux",
+(5) Some file paths now assume that you are running NextGen from the top level
+    of the ngen project folder.  If not, you may need to edit the setting of
+    "train_cfg_file" in the LSTM model config (YML) file to something like:
+    ./extern/lstm_py/trained_neuralhydrology_models/hourly_slope_mean_precip/config.yml
 
-     In the "variable_names_map" block, add the line:
-         "streamflow_cms: "land_surface_water__runoff_volume_flux",
-     We do *not* need to add:
-        "water_input": "atmosphere_water__liquid_equivalent_precipitation_rate",
-
-     Set:
-            "forcing": {
-                "path": "./data/forcing/cat-67_2015-12-01 00_00_00_2015-12-30 23_00_00.csv"
-
-(3) Edit the file:  ngen/extern/lstm_py/bmi_config_files/cat-67.yml, to be:
-    time_step: '1 hour'
-    initial_state: 'zero'
-    basin_name: 'cat-67'
-    basin_id: 'cat-67'
-    area_sqkm: 10.09406319443798
-    lat: 46.528817831207256
-    lon: -69.2994875283471
-    #train_cfg_file: ./trained_neuralhydrology_models/hourly_slope_mean_precip_temp/config.yml
-    train_cfg_file: ./extern/lstm_py/trained_neuralhydrology_models/hourly_A/config.yml
-    verbose: 1
-    elev_mean: 316.713505221
-    slope_mean: 5.07506774
-
-(4) In the file:  ngen/extern/lstm_py/lstm/bmi_lstm.py, near line 77 in _input_var_names,
-    make this change:
-    'atmosphere_water__liquid_equivalent_precipitation_rate',  # (SDP, 08/30/22)
-    ### 'atmosphere_water__time_integral_of_precipitation_mass_flux',  # (SDP)
-
-(5) (base) % cd ngen
-    (base) % ./cmake_build/ngen ./data/catchment_data_cat67.geojson "cat-67" ./data/nexus_data_nex65.geojson "nex-65" ./data/lstm/realization_config_lstm_cat67.json
+(6) Run NextGen with the following commands:
+    (base) % cd <ngen_repo_tree>
+    (base) % ./cmake_build/ngen ./data/lstm/spatial/catchment_data_cat67.geojson "cat-67" ./data/lstm/spatial/nexus_data_nex65.geojson "nex-65" ./data/lstm/yml_files/realization_config_lstm_cat67b.json
+    The output should look like:
 
 #### NextGen Output ####
 NGen Framework 0.1.0
@@ -81,10 +62,46 @@ zsh: abort      ./cmake_build/ngen ./data/catchment_data_cat67.geojson "cat-67" 
 cat-67.csv  (34537 bytes)
 nex-65_output.csv (24288 bytes)
 
-(6) This also works, where in the realization config file (realization_config_lstm_cat67b.json)
-    we instead use a cat-67.csv that spans start and end times:
-    (base) % cd ngen
-    (base) % ./cmake_build/ngen ./data/catchment_data_cat67.geojson "cat-67" ./data/nexus_data_nex65.geojson "nex-65" ./data/lstm/realization_config_lstm_cat67b.json
+Note: It appears that the "Pointer" error reported at the end is a NextGen problem.
+
+------------------------------------------------
+ Notes about realization config files for LSTM
+------------------------------------------------
+
+(1) Set "name" in the formulations block to "bmi_python".
+
+(2) Set "python_type" to "lstm.bmi_lstm.bmi_LSTM",
+    which has the form:  "package-name/module-name/class-name".
+    Note:  The file: ngen/extern/lstm_py/lstm/__init__.py should be empty.
+
+(3) Set "model_type_name" to "bmi_LSTM", which is the model class name.
+
+(4) Set "init_config" as the complete path to an LSTM model config file.
+    For example:
+        "./data/lstm/yml_files/HUC01/cat-67.yml"
+    or
+        "./extern/lstm_py/bmi_config_files/cat-67.yml"
+    It can also contain a regular expression to match many files:
+        "./data/lstm/yml_files/HUCO01/{{id}}.yml"      
+
+(5) Set "main_output_variable" to
+        "land_surface_water__runoff_volume_flux",
+
+(6) In the "variable_names_map" block, notice the line:
+        "streamflow_cms: "land_surface_water__runoff_volume_flux",
+    You do *not* need to add:
+        "water_input": "atmosphere_water__liquid_equivalent_precipitation_rate",
+
+(7) In the "forcing" block, you no longer need to use a forcing file that has
+    only contains data for the time range of interest (start_time to end_time).
+    For example, you can set "path" to:
+        "./data/forcing/HUC01-test/cat-67.csv"
+    or
+        "./data/forcing/CAMELS-test/{{id}}.csv"
+
+(8) In the "time" block, make sure that "start_time" and "end_time" fall into
+    the range that is spanned by entries in the CSV forcing file.
+
 
 --------------------------------------------------------------------
  Steps to run the LSTM Package in NextGen for All HUC01 Catchments
@@ -142,7 +159,7 @@ nex-65_output.csv (24288 bytes)
       }
       ],
         "forcing": {
-            "path": "./data/forcing/cat-67_2015-12-01 00_00_00_2015-12-30 23_00_00.csv"
+            "path": "./data/forcing/HUC01-test/cat-67.csv"
         }
     },
     "time": {
@@ -151,77 +168,18 @@ nex-65_output.csv (24288 bytes)
         "output_interval": 3600
     }
 }
-----------------------------------------------------------------------------------------------
-   
+  
 (6) Now type this command, where "" indicates all catchments:
 
-    (base) % cd ngen
-    (base) % ./cmake_build/ngen ./data/catchment_data_HUC01.geojson "" ./data/nexus_data_HUC01.geojson "" ./data/lstm/realization_config_lstm_HUC01.json
+    (base) % cd <ngen-repo-folder>
+    (base) % ./cmake_build/ngen ./data/lstm/spatial/catchment_data_HUC01.geojson "" ./data/lstm/spatial/nexus_data_HUC01.geojson "" ./data/lstm/rc_files/realization_config_lstm_HUC01.json
 
-#### NextGen Output to Console ####
-NGen Framework 0.1.0
-Building Nexus collection
-Building Catchment collection
-Catchment topology is dendridic.
-Running Models
-Running timestep 0
-Running timestep 100
-Running timestep 200
-Running timestep 300
-Running timestep 400
-Running timestep 500
-Running timestep 600
-Running timestep 700
-Finished 720 timesteps.
-ngen(83496,0x10c5c0dc0) malloc: *** error for object 0x7fb70f2f29e0: pointer being freed was not allocated
-ngen(83496,0x10c5c0dc0) malloc: *** set a breakpoint in malloc_error_break to debug
-zsh: abort      ./cmake_build/ngen ./data/catchment_data_HUC01.geojson ""  "" 
-#### Output Files (CSV) in the ngen Folder #####
-{{id}}.csv
+--------------------------------
+ Note about model output files
+--------------------------------
+At this time, NextGen does not support setting a "output directory" for
+model output.  So all output files will be written to the same folder
+where you ran NextGen from.
+See: https://github.com/NOAA-OWP/ngen/issues/374
 
-######################################################
-HOW DO WE SPECIFY AN OUTPUT FOLDER FOR CSV FILES ??
-(like ./LSTM_CSV.  See: https://github.com/NOAA-OWP/ngen/issues/374
-######################################################
-
-(7) This also works, but is somewhat slower:
-    (base) % cd ngen
-    (base) % ./cmake_build/ngen ./data/catchment_data_HUC01.geojson "cat-67" ./data/nexus_data_HUC01.geojson "nex-65" ./data/lstm/realization_config_lstm_cat67b.json
-
-
-----------------------------------------------------
-ATTEMPTS TO ELIMINATE THE "POINTER" ERROR MESSAGE:
-----------------------------------------------------
-(1) In the file: bmi_lstm.py, made this change:
-    # _output_var_names = ['land_surface_water__runoff_depth', 
-    #                     'land_surface_water__runoff_volume_flux']
-    _output_var_names = ['land_surface_water__runoff_volume_flux']
-    but it didn't help.
-(2) In the file: bmi_lstm.py, made this change:
-#     _input_var_names = [
-#         'land_surface_radiation~incoming~longwave__energy_flux',
-#         'land_surface_air__pressure',
-#         'atmosphere_air_water~vapor__relative_saturation',
-#         'atmosphere_water__liquid_equivalent_precipitation_rate',  ### SDP, 08/30/22
-#         ##### 'atmosphere_water__time_integral_of_precipitation_mass_flux',  #### SDP
-#         'land_surface_radiation~incoming~shortwave__energy_flux',
-#         'land_surface_air__temperature',
-#         'land_surface_wind__x_component_of_velocity',
-#         'land_surface_wind__y_component_of_velocity']
-    _input_var_names = []
-    but it didn't help. 
-
----------------------------------------------------------------------------------------------
-(*) NOTE:  Going forward, in order to use forcing from NextGen, may need to add this
-    block to the realization config file:
-                  "RAINRATE": "atmosphere_water__liquid_equivalent_precipitation_rate",
-                  "T2D":      "land_surface_air__temperature",
-                  "Q2D":      "atmosphere_air_water~vapor__relative_saturation",
-                  "U2D":      "land_surface_wind__x_component_of_velocity",
-                  "V2D":      "land_surface_wind__y_component_of_velocity",
-                  "PSFC":     "land_surface_air__pressure",
-                  "SWDOWN":   "land_surface_radiation~incoming~shortwave__energy_flux",
-                  "LWDOWN":   "land_surface_radiation~incoming~longwave__energy_flux",
-
----------------------------------------------------------------------------------------------
 
