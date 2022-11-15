@@ -1,0 +1,33 @@
+{
+    "global": {
+      "formulations":
+      [
+        {
+          "name": "bmi_python",
+          "params": {
+              "python_type": "lstm.bmi_lstm.bmi_LSTM",
+              "model_type_name": "bmi_LSTM",
+              "init_config": "./extern/lstm_py/bmi_config_files/CAMELS-test/{{id}}.yml",
+              "main_output_variable": "land_surface_water__runoff_volume_flux",
+              "uses_forcing_file": false,
+              "variables_names_map" : {
+                  "streamflow_cms": "land_surface_water__runoff_volume_flux"},
+              "pytorch_model_path": "./ngen/data/lstm/sugar_creek_trained.pt",
+              "normalization_path": "./ngen/data/lstm//input_scaling.csv",
+              "initial_state_path": "./ngen/data/lstm//initial_states.csv",
+              "useGPU": false
+        }
+      }
+      ],
+        "forcing": {
+            "file_pattern": "{{id}}.csv",
+            "path": "./data/forcing/CAMELS-test/",
+            "provider": "CsvPerFeature"
+        }
+    },
+    "time": {
+        "start_time": "2007-01-01 00:00:00",
+        "end_time": "2007-02-01 00:00:00",
+        "output_interval": 3600
+    }
+}
