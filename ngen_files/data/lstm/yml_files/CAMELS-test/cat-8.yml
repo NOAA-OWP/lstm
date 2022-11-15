@@ -1,0 +1,11 @@
+time_step: '1 hour'
+initial_state: 'zero'
+basin_name: 'cat-8'
+basin_id: 'cat-8'
+area_sqkm: 8.296712622057914
+lat: 1393412.076801406
+lon: -1881997.8851467057
+train_cfg_file:  ./extern/lstm_py/trained_neuralhydrology_models/hourly_slope_mean_precip_temp/config.yml
+verbose: 1
+elev_mean: 1899.865856291
+slope_mean: 166.445428393
