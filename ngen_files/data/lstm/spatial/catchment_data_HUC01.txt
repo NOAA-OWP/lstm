@@ -1,0 +1,8 @@
+
+S.D. Peckham
+September 13, 20221
+
+This is a placeholder for the catchment_data GeoJSON file
+for all of the HUC01 catchments.  The filesize is 46 MB,
+which GitHub doesn't allow.
+
