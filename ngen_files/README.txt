@@ -3,10 +3,10 @@ September 13, 2022
 November 15, 2022
 
 For use in NextGen, the lstm_py project folder should be copied into
-the NextGen project folder, at ngen/extern/lstm_py, and the files.
+the NextGen project folder, at ngen/extern/lstm_py.
 
-This folder, "ngen_files", contains files that should be copied into the
-ngen repo tree (or project folder), into the indicated subfolders.
+This subfolder, "ngen_files", contains files that should be copied into
+the ngen repo tree (or project folder), into the indicated subfolders.
 This will allow the new LSTM Python package to be run from within NextGen.
 
 The "ngen_files folder" contains:
