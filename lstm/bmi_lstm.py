@@ -403,14 +403,15 @@ class bmi_LSTM(Bmi):
         # print('Creating scaled input tensor...')
         n_inputs = len(self.all_lstm_inputs)
         self.input_list = []  #############
+        DEBUG = False
         for k in range(n_inputs):
             short_name = self.all_lstm_inputs[k]
             long_name  = self._var_name_map_short_first[ short_name ]
             # vals = self.get_value( self, long_name )
-            vals = getattr( self, short_name )
+            vals = getattr( self, short_name )  ####################
 
             self.input_list.append( vals )
-            if (VERBOSE):         
+            if (VERBOSE or DEBUG):         
                 print('  short_name =', short_name )
                 print('  long_name  =', long_name )
                 array = getattr( self, short_name )
@@ -418,14 +419,25 @@ class bmi_LSTM(Bmi):
                 print('  type       =', type(vals) )
                 print('  vals       =', vals )
 
-        self.input_array = np.array( self.input_list )
+        #--------------------------------------------------------
+        # W/o setting dtype here, it was "object_", and crashed
+        #--------------------------------------------------------
+        ## self.input_array = np.array( self.input_list )
+        self.input_array = np.array( self.input_list, dtype='float64' )  # SDP
         if (VERBOSE):
             print('Normalizing the tensor...')
             print('  input_mean =', self.input_mean )
             print('  input_std  =', self.input_std  )
             print()
         # Center and scale the input values for use in torch
-        self.input_array_scaled = (self.input_array - self.input_mean) / self.input_std 
+        self.input_array_scaled = (self.input_array - self.input_mean) / self.input_std
+        if (DEBUG):
+            print('### input_list =', self.input_list)
+            print('### input_array =', self.input_array)
+            print('### dtype(input_array) =', self.input_array.dtype )
+            print('### type(input_array_scaled) =', type(self.input_array_scaled))
+            print('### dtype(input_array_scaled) =', self.input_array_scaled.dtype )
+            print()
         self.input_tensor = torch.tensor(self.input_array_scaled)
 
     #------------------------------------------------------------ 
@@ -642,7 +654,8 @@ class bmi_LSTM(Bmi):
     #------------------------------------------------------------ 
     def get_var_itemsize(self, name):
 #        return np.dtype(self.get_var_type(name)).itemsize
-        return np.array(self.get_value(name)).itemsize
+        # SDP. get_value() -> get_value_ptr()
+        return np.array(self.get_value_ptr(name)).itemsize
 
     #------------------------------------------------------------ 
     def get_var_location(self, name):
@@ -826,7 +839,8 @@ class bmi_LSTM(Bmi):
         """
         #NJF This must copy into dest!!!
         #Convert to np.array in case of singleton/non numpy type, then flatten
-        data = np.array(self.get_value(var_name)).flatten()
+        ## data = np.array(self.get_value(var_name)).flatten()
+        data = np.array(self.get_value_ptr(var_name)).flatten()  #### SDP
         dest[:] = data[indices]
         return dest
  
