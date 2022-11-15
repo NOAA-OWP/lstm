@@ -107,7 +107,7 @@ Note: It appears that the "Pointer" error reported at the end is a NextGen probl
     You do *not* need to add:
         "water_input": "atmosphere_water__liquid_equivalent_precipitation_rate",
 
-(7) In the "forcing" block, you no longer need to use a forcing file that has
+(7) In the "forcing" block, you no longer need to use a forcing file that
     only contains data for the time range of interest (start_time to end_time).
     For example, you can set "path" to:
         "./data/forcing/HUC01-test/cat-67.csv"
