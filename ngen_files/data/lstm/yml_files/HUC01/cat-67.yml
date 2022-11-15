@@ -1,0 +1,12 @@
+time_step: '1 hour'
+initial_state: 'zero'
+basin_name: 'cat-67'
+basin_id: 'cat-67'
+area_sqkm: 10.09406319443798
+lat: 46.528817831207256
+lon: -69.2994875283471
+#train_cfg_file: ./trained_neuralhydrology_models/hourly_slope_mean_precip_temp/config.yml
+train_cfg_file: ./extern/lstm_py/trained_neuralhydrology_models/hourly_A/config.yml
+verbose: 1
+elev_mean: 316.713505221
+slope_mean: 5.07506774
