@@ -29,14 +29,24 @@ November 15, 2022 (updated)
            (base) % python
            >>> import lstm
 
-(5) Some file paths now assume that you are running NextGen from the top level
-    of the ngen project folder.  If not, you may need to edit the setting of
-    "train_cfg_file" in the LSTM model config (YML) file to something like:
-    ./extern/lstm_py/trained_neuralhydrology_models/hourly_slope_mean_precip/config.yml
+(5) In the original version of LSTM, it was assumed that you would be running
+    LSTM from its own repo folder, and therefore some file paths are set relative
+    to that folder.  For example, in the LSTM model config (YML) files, the
+    "train_cfg_file" entry is initially set to:
+        ./trained_neuralhydrology_models/hourly_slope_mean_precip/config.yml
+    To run LSTM from the top level of the ngen repo folder, this must be changed to:
+        ./extern/lstm_py/trained_neuralhydrology_models/hourly_slope_mean_precip/config.yml
+    However, LSTM also uses some Python pickle files (created during training) that
+    make the same assumption, and you can't edit these.  One easy way to resolve this
+    filepath issue --- so that you can run LSTM from the ngen repo folder --- is to
+    cd to the ngen repo folder and then create a symbolic link with the command:  
+ 
+    % ln -s ./extern/lstm_py/trained_neuralhydrology_models ./trained_neuralhydrology_models
 
-(6) Run NextGen with the following commands:
+(7) Run NextGen for the HUC01 catchment "cat-67" with the commands:
     (base) % cd <ngen_repo_tree>
-    (base) % ./cmake_build/ngen ./data/lstm/spatial/catchment_data_cat67.geojson "cat-67" ./data/lstm/spatial/nexus_data_nex65.geojson "nex-65" ./data/lstm/yml_files/realization_config_lstm_cat67b.json
+    (base) % ./cmake_build/ngen ./data/lstm/spatial/catchment_data_cat67.geojson "cat-67" ./data/lstm/spatial/nexus_data_nex65.geojson "nex-65" ./data/lstm/rc_files/realization_config_lstm_cat67b.json
+
     The output should look like:
 
 #### NextGen Output ####
@@ -63,6 +73,11 @@ cat-67.csv  (34537 bytes)
 nex-65_output.csv (24288 bytes)
 
 Note: It appears that the "Pointer" error reported at the end is a NextGen problem.
+
+
+(8) Run NextGen for 3 test catchments (in one CAMELS basin) with the commands:
+    (base) % cd <ngen_repo_tree>
+    (base) % ./cmake_build/ngen ./data/lstm/spatial/catchment_data_CAMELS-test.geojson "cat-67" ./data/lstm/spatial/nexus_data_CAMELS-test.geojson "nex-65" ./data/lstm/rc_files/realization_config_lstm_CAMELS-test.json
 
 ------------------------------------------------
  Notes about realization config files for LSTM
