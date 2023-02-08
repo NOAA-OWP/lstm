@@ -40,7 +40,7 @@ bmi=bmi_lstm.bmi_LSTM()
 print("\nBEGIN BMI UNIT TEST\n*******************\n");
 
 # Define config path
-cfg_file=Path('../bmi_config_files/01022500_hourly_all_attributes_forcings.yml')
+cfg_file=Path('./bmi_config_files/01022500_hourly_all_attributes_forcings.yml')
 #cfg_file=Path('./bmi_config_files/01022500_hourly_slope_mean_precip_temp.yml')
 
 if os.path.exists(cfg_file):

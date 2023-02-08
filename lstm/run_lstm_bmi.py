@@ -8,9 +8,10 @@ from netCDF4 import Dataset
 # This is the BMI LSTM that we will be running
 import bmi_lstm
 
-# Define primary bmi config and input data file paths
-bmi_cfg_file=Path('./../bmi_config_files/01022500_hourly_all_attributes_forcings.yml')
-sample_data_file = Path('./../data/usgs-streamflow-nldas_hourly.nc')
+# Define primary bmi config and input data file paths bmi_config_files/01022500_hourly_slope_mean_precip_temp.yml
+#bmi_cfg_file=Path('./bmi_config_files/01022500_hourly_all_attributes_forcings.yml')
+bmi_cfg_file=Path('./bmi_config_files/01022500_hourly_slope_mean_precip_temp.yml')
+sample_data_file = Path('./data/usgs-streamflow-nldas_hourly.nc')
 
 # creating an instance of an LSTM model
 print('Creating an instance of an BMI_LSTM model object')
@@ -29,13 +30,15 @@ print('Set values & update model for number of timesteps = 10')
 for precip, temp in zip(list(sample_data['total_precipitation'][3].data),
                         list(sample_data['temperature'][3].data)):
 
-    model.set_value('atmosphere_water__time_integral_of_precipitation_mass_flux',np.atleast_1d(precip))
+    #model.set_value('atmosphere_water__time_integral_of_precipitation_mass_flux',np.atleast_1d(precip))
+    model.set_value('atmosphere_water__liquid_equivalent_precipitation_rate',np.atleast_1d(precip))
     model.set_value('land_surface_air__temperature',np.atleast_1d(temp))
 
     dest_array = np.zeros(1)
     model.get_value('land_surface_air__temperature', dest_array)
     temperature = dest_array[0]
-    model.get_value('atmosphere_water__time_integral_of_precipitation_mass_flux', dest_array)
+    #model.get_value('atmosphere_water__time_integral_of_precipitation_mass_flux', dest_array)
+    model.get_value('atmosphere_water__liquid_equivalent_precipitation_rate', dest_array)
     precip = dest_array[0]
 
     print(' Temperature and precipitation are set to {:.2f} and {:.2f}'.format(temperature, precip))
@@ -47,7 +50,7 @@ for precip, temp in zip(list(sample_data['total_precipitation'][3].data),
 
     print(' Streamflow (cms) at time {} ({}) is {:.2f}'.format(model.get_current_time(), model.get_time_units(), runoff))
 
-    if model.t > 10:
+    if model.t > 100:
         #print('Stopping the loop')
         break
 
