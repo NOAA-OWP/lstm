@@ -49,9 +49,9 @@ Notice that `xarray` has a specific version defined in the environment file (0.1
 If at any point you want to see the full list of the packages and dependencies in your activated `bmi_lstm` environment, run `conda env export > environment_<rename>.yml` replacing `<rename>` with your text of choice to avoid overwriting the original `environment.yml` file.
 
 ## Running BMI LSTM
-This section goes through an example of running the LSTM with the BMI interface. These are only examples. If a user wants to run the LSTM with BMI, then these are a jumping off point. These examples were developed to provide a quick testing ground for running the LSTM with the [Nextgen framework](https://github.com/NOAA-OWP/ngen).  
+This section goes through an example of running the LSTM with the BMI interface. These are only examples. If a user wants to run the LSTM with BMI, then these are a jumping off point. These examples were developed to provide a quick testing ground for running the LSTM with the [NextGen framework](https://github.com/NOAA-OWP/ngen).  See the [`doc/`](./doc) folder for more information regarding running this module within `NextGen`
 
-Note that this code assumes the use of the `bmi_lstm` environment for Anaconda. To load this environment, enter `conda activate bmi_lstm`.   
+Note that this code assumes the use of the `bmi_lstm` environment for Anaconda. To load this environment, enter `conda activate bmi_lstm`.  Install the library, `pip install lstm` and execute `python -m lstm`.  See [PACKAGE.md](./PACKAGE.md) for more information about running lstm as a python library. 
 
 Be aware that these scripts are examples and may require changes for your use case. For example, the Python script was developed for the trained LSTM model with limited attributes (`hourly_slope_mean_precip_temp`) and the for loop will need to be changed if running with the LSTM model that was trained with all attributes (an example of this code can be found in the [Jupyter Notebook](./notebooks/run_lstm_with_bmi.ipynb).
 
