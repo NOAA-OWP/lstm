@@ -179,7 +179,7 @@ start_plot=17000
 end_plot  =24000
 plt.plot(sample_data['qobs_CAMELS_mm_per_hour'][ibasin][start_plot:end_plot], label='obs', c='k')
 plt.plot(runoff_output_list1[start_plot:end_plot],label='LSTM BMI')
-plt.ylim([0,0.5])
+#plt.ylim([0,0.5])
 plt.ylabel('streamflow mm/hr')
 plt.xlabel('hours')
 plt.legend()
@@ -204,7 +204,7 @@ start_plot=17000
 end_plot  =24000
 plt.plot(sample_data['qobs_CAMELS_mm_per_hour'][ibasin][start_plot:end_plot], label='obs', c='k')
 plt.plot(runoff_output_list2[start_plot:end_plot],label='LSTM BMI')
-plt.ylim([0,0.5])
+#plt.ylim([0,0.5])
 plt.ylabel('streamflow mm/hr')
 plt.xlabel('hours')
 plt.legend()
