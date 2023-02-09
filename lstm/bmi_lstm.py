@@ -38,15 +38,15 @@ class bmi_LSTM(Bmi):
     def __init__(self):
         """Create a Bmi LSTM model that is ready for initialization."""
         super(bmi_LSTM, self).__init__()
+        self._name = "LSTM for Next Generation NWM"
         self._values = {}
         self._var_loc = "node"
         self._var_grid_id = 0
+        self._var_grid_type = "scalar"
         self._start_time = 0
         self._end_time = np.finfo("d").max
-        self._time_units = "h"  # (SDP)
+        self._time_units = "hour"  # (SDP)
         self._time_step_size = 1.0 # (SDP)
-        #self._time_units = "s"
-        #self._time_step_size = 3600 # in units of seconds.
         
         # Note: these need to be initialized here as scale_output() called in update()
         self.streamflow_cms = 0.0
@@ -56,16 +56,11 @@ class bmi_LSTM(Bmi):
     #----------------------------------------------
     # Required, static attributes of the model
     #----------------------------------------------
+    # Note: not currently in use
     _att_map = {
         'model_name':         'LSTM for Next Generation NWM',
         'version':            '1.0',
-        'author_name':        'Jonathan Martin Frame',
-        'grid_type':          'scalar', 
-        'time_step_size':      1,       
-        #'time_step_type':     'donno', #unused  
-        #'step_method':        'none',  #unused
-        #'time_units':         '1 hour' #NJF Have to drop the 1 for NGEN to recognize the unit
-        'time_units':         'hour' }
+        'author_name':        'Jonathan Martin Frame' }
 
     #---------------------------------------------
     # Input variable names (CSDMS standard names)
@@ -160,6 +155,76 @@ class bmi_LSTM(Bmi):
                                'p_mean','pet_mean','slope_mean','soil_conductivity',
                                'soil_depth_pelletier','soil_depth_statsgo','soil_porosity',
                                'sand_frac','silt_frac', 'gauge_lat', 'gauge_lon']
+    
+    def __getattribute__(self, item):
+        """
+        Customize instance attribute access.
+
+        For those items that correspond to BMI input or output variables (which should be in numpy arrays) and have
+        values that are just a single-element array, deviate from the standard behavior and return the single array
+        element.  Fall back to the default behavior in any other case.
+
+        This supports having a BMI variable be backed by a numpy array, while also allowing the attribute to be used as
+        just a scalar, as it is in many places for this type.
+
+        Parameters
+        ----------
+        item
+            The name of the attribute item to get.
+
+        Returns
+        -------
+        The value of the named item.
+        """
+        # Have these work explicitly (or else loops)
+        if item == '_input_var_names' or item == '_output_var_names':
+            return super(bmi_LSTM, self).__getattribute__(item)
+
+        # By default, for things other than BMI variables, use normal behavior
+        if item not in super(bmi_LSTM, self).__getattribute__('_input_var_names') and item not in super(bmi_LSTM, self).__getattribute__('_output_var_names'):
+            return super(bmi_LSTM, self).__getattribute__(item)
+
+        # Return the single scalar value from any ndarray of size 1
+        value = super(bmi_LSTM, self).__getattribute__(item)
+        if isinstance(value, np.ndarray) and value.size == 1:
+            return value[0]
+        else:
+            return value
+
+    def __setattr__(self, key, value):
+        """
+        Customized instance attribute mutator functionality.
+
+        For those attribute with keys indicating they are a BMI input or output variable (which should be in numpy
+        arrays), wrap any scalar ``value`` as a one-element numpy array and use that in a nested call to the superclass
+        implementation of this function.  In any other cases, just pass the given ``key`` and ``value`` to a nested
+        call.
+
+        This supports automatically having a BMI variable be backed by a numpy array, even if it is initialized using a
+        scalar, while otherwise maintaining standard behavior.
+
+        Parameters
+        ----------
+        key
+        value
+
+        Returns
+        -------
+
+        """
+        # Have these work explicitly (or else loops)
+        if key == '_input_var_names' or key == '_output_var_names':
+            super(bmi_LSTM, self).__setattr__(key, value)
+
+        # Pass thru if value is already an array
+        if isinstance(value, np.ndarray):
+            super(bmi_LSTM, self).__setattr__(key, value)
+        # Override to put scalars into ndarray for BMI input/output variables
+        elif key in self._input_var_names or key in self._output_var_names:
+            super(bmi_LSTM, self).__setattr__(key, np.array([value]))
+        # By default, use normal behavior
+        else:
+            super(bmi_LSTM, self).__setattr__(key, value)
 
     #------------------------------------------------------------
     #------------------------------------------------------------
@@ -533,7 +598,8 @@ class bmi_LSTM(Bmi):
     #------------------------------------------------------------ 
     def get_component_name(self):
         """Name of the component."""
-        return self.get_attribute( 'model_name' )
+        #return self.get_attribute( 'model_name' )
+        return self._name
 
     #------------------------------------------------------------ 
     def get_input_item_count(self):
@@ -717,7 +783,7 @@ class bmi_LSTM(Bmi):
 #         internal_array[:] = values
                
     #-------------------------------------------------------------------
-    def set_value(self, var_name, value):
+    def set_value(self, var_name: str, values:np.ndarray):
         """Set model values.
 
         Parameters
@@ -728,10 +794,14 @@ class bmi_LSTM(Bmi):
               Array of new values.
         """
     
-        short_name = self._var_name_map_long_first[ var_name ]
+        internal_array = self.get_value_ptr(var_name)
+        #self.get_value_ptr(var_name)[:] = values
+        internal_array[:] = values
+
+        #short_name = self._var_name_map_long_first[ var_name ]
         
         # Better approach, assuming type is "ndarray" (SDP)
-        setattr( self, short_name, value )
+        # setattr( self, short_name, values )
 
 #         if (value.ndim > 0):
 #             setattr( self, short_name, value[0])
@@ -822,7 +892,7 @@ class bmi_LSTM(Bmi):
             return self.get_var_itemsize(var_name)
 
     #------------------------------------------------------------ 
-    def get_value_at_indices(self, var_name, dest, indices):
+    def get_value_at_indices(self, var_name: str, dest:np.ndarray, indices:np.ndarray) -> np.ndarray:
         """Get values at particular indices.
         Parameters
         ----------
@@ -840,8 +910,12 @@ class bmi_LSTM(Bmi):
         #NJF This must copy into dest!!!
         #Convert to np.array in case of singleton/non numpy type, then flatten
         ## data = np.array(self.get_value(var_name)).flatten()
-        data = np.array(self.get_value_ptr(var_name)).flatten()  #### SDP
-        dest[:] = data[indices]
+        #data = np.ndarray(self.get_value_ptr(var_name)).flatten()  #### SDP
+        #dest[:] = data[indices]
+        original: np.ndarray = self.get_value_ptr(var_name)
+        for i in range(indices.shape[0]):
+            value_index = indices[i]
+            dest[i] = original[value_index]
         return dest
  
     #   Note: remaining grid funcs do not apply for type 'scalar'

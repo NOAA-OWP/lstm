@@ -48,7 +48,7 @@ def execute():
         temp = temp_data[k]                    
         model.set_value('atmosphere_water__liquid_equivalent_precipitation_rate',precip)
         model.set_value('land_surface_air__temperature',temp)
-        print('  temperature and precipitation are set to {:.2f} and {:.2f}'.format(model.temperature, model.total_precipitation))
+        print('  temperature and precipitation are set to {:.2f} and {:.2f}'.format(temp, precip))
         #print('  temperature and precipitation are set to {:.2f} and {:.2f}'.format(model.temperature, model.precip))
         model.update()
         print('  streamflow (CMS) at time {} is {:.2f}'.format(model.t, model.streamflow_cms))
