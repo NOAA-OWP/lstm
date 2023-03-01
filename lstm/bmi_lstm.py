@@ -709,7 +709,10 @@ class bmi_LSTM(Bmi):
             Data type.
         """
         #NJF Need an actual type here...
-        return type(self.get_value_ptr(long_var_name)).__name__ #.dtype
+        #return type(self.get_value_ptr(long_var_name)).__name__ #.dtype
+
+        #JG MW 03.01.23 - otherwise Bmi_py_Adaptor.hpp `get_analogous_cxx_type` fails
+        return self.get_value_ptr(long_var_name).dtype.name
     #------------------------------------------------------------ 
     def get_var_grid(self, name):
         
@@ -721,7 +724,10 @@ class bmi_LSTM(Bmi):
     def get_var_itemsize(self, name):
 #        return np.dtype(self.get_var_type(name)).itemsize
         # SDP. get_value() -> get_value_ptr()
-        return np.array(self.get_value_ptr(name)).itemsize
+        
+        # JG get_value_ptr is already an np.array
+        # return np.array(self.get_value_ptr(name)).itemsize
+        return self.get_value_ptr(name).itemsize  
 
     #------------------------------------------------------------ 
     def get_var_location(self, name):
@@ -885,11 +891,12 @@ class bmi_LSTM(Bmi):
         #return sys.getsizeof(self.get_value_ptr(var_name))
         #This is just the itemsize (size per element) * number of elements
         #Since all are currently scalar, this is 1
-        try:
-            return self.get_var_itemsize(var_name)*len(self.get_value_ptr(var_name))
-        except TypeError:
-            #must be scalar
-            return self.get_var_itemsize(var_name)
+        #try:
+        #    return self.get_var_itemsize(var_name)*len(self.get_value_ptr(var_name))
+        #except TypeError:
+        #    #must be scalar
+        #    return self.get_var_itemsize(var_name)
+        return self.get_var_itemsize(var_name)*len(self.get_value_ptr(var_name))
 
     #------------------------------------------------------------ 
     def get_value_at_indices(self, var_name: str, dest:np.ndarray, indices:np.ndarray) -> np.ndarray:

@@ -29,7 +29,7 @@ print('Gathering input data')
 sample_data = Dataset(sample_data_file, 'r')
 
 # Now loop through the inputs, set the forcing values, and update the model
-print('Set values & update model for number of timesteps = 10')
+print('Set values & update model for number of timesteps = 100')
 for precip, temp in zip(list(sample_data['total_precipitation'][3].data),
                         list(sample_data['temperature'][3].data)):
 
