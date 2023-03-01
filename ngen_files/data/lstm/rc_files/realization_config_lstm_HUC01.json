@@ -5,9 +5,9 @@
         {
           "name": "bmi_python",
           "params": {
-              "python_type": "lstm.bmi_LSTM",
+              "python_type": "lstm.bmi_lstm.bmi_LSTM",
               "model_type_name": "bmi_LSTM",
-              "init_config": "./extern/lstm_py/bmi_config_files/HUC01/{{id}}.yml",
+              "init_config": "./data/lstm/yml_files/HUC01/{{id}}.yml",
               "main_output_variable": "land_surface_water__runoff_volume_flux",
               "uses_forcing_file": false,
               "variables_names_map" : {
