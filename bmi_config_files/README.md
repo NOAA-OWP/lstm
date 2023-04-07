@@ -3,7 +3,7 @@ BMI requires a configuration file for each model. The LSTM configuration files c
 
 ## Initialization Information
 These key value pairs are used by the BMI to set up the model in some particular way  
-- `train_cfg_file: ./trained_neuralhydrology_models/hourly_all_attributes_and_forcings/config.yml` found [here]( ./trained_neuralhydrology_models/hourly_all_attributes_and_forcings/config.yml). This is a very important part of the LSTM model. This is a configuration file used when training the model. It has critical information on the LSTM architecture and should not be altered.
+- `train_cfg_file: ./trained_neuralhydrology_models/hourly_all_attributes_and_forcings/config.yml` found [here](https://github.com/NOAA-OWP/lstm/blob/63116cc6a6bbdb5537868f20ff55cc326795b570/trained_neuralhydrology_models/hourly_all_attributes_and_forcings/config.yml). This is a very important part of the LSTM model. This is a configuration file used when training the model. It has critical information on the LSTM architecture and should not be altered.
 - `initial_state: 'zero'` This is an option to set the initial states of the model to zero.
 - `verbose: 0` Change to `1` in order to print additional BMI information during runtime.
 
