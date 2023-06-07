@@ -47,4 +47,4 @@ jobs:
         activate-environment: bmi_lstm
     
     - name: Run Unit Test LSTM
-      run: python ./lstm/run_bmi_unit_test.py
+      run: python lstm/run_bmi_unit_test.py
