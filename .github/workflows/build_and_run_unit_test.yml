@@ -50,7 +50,7 @@ jobs:
         environment-file: ./environment.yml
         
     - name: install lstm py package
-      run: cd lstm && pip install lstm -e .
+      run: pip install lstm -e .
       
     - name: Run Unit Test LSTM
       run: python lstm/run_bmi_unit_test.py
