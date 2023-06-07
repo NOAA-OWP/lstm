@@ -42,10 +42,10 @@ jobs:
     #  run: $CONDA/bin/conda env create -f environment.yml
         
     - name: activate conda
-    - uses: conda-incubator/setup-miniconda@v2
+      uses: conda-incubator/setup-miniconda@v2
       with:
         activate-environment: bmi_lstm
-        environment-file: environment.yml
+        environment-file: ./environment.yml
     
     - name: Run Unit Test LSTM
       run: python lstm/run_bmi_unit_test.py
