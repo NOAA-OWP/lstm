@@ -22,11 +22,12 @@ jobs:
   test_unit:
     # The type of runner that the job will run on
     strategy:
-      matrix:
-        os: [ubuntu-latest, macos-latest]
+      #matrix:
+        #os: [ubuntu-latest, macos-latest]
         #python-version: [3.7, 3.8, 3.9]
       fail-fast: false
-    runs-on: ${{ matrix.os }}
+    #runs-on: ${{ matrix.os }}
+    runs-on: ubuntu-latest
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
@@ -49,7 +50,7 @@ jobs:
         environment-file: ./environment.yml
         
     - name: install lstm py package
-      run: pip install lstm
+      run: cd lstm && pip install lstm -e .
       
     - name: Run Unit Test LSTM
       run: python lstm/run_bmi_unit_test.py
