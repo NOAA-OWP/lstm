@@ -37,7 +37,7 @@ jobs:
     - name: setup python # ${{ matrix.python-version }}
       uses: actions/setup-python@v2 #jg: build in via gh
       with:
-        pythong-version: 3.7
+        python-version: 3.7
         #python-version: ${{ matrix.python-version }}
         
     #- name: create conda env
