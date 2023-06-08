@@ -41,12 +41,12 @@ jobs:
     #- name: create conda env
     #  run: $CONDA/bin/conda env create -f environment.yml
         
-    #- name: activate conda
-    #  uses: conda-incubator/setup-miniconda@v2
-    #  with:
-    #    activate-environment: bmi_lstm
-    #    environment-file: ./environment.yml
-    #    auto-activate-base: false
+    - name: activate conda
+      uses: conda-incubator/setup-miniconda@v2
+      with:
+        activate-environment: bmi_lstm
+        environment-file: ./environment.yml
+        auto-activate-base: false
         
     - name: install packages
       run: |
