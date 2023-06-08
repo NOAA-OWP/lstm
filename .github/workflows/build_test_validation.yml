@@ -1,4 +1,4 @@
-# Test changes that have been pushed to the master and dev branches
+# Test changes that have been pushed to the master
 
 name: Testing and Validation
 
@@ -22,33 +22,31 @@ jobs:
   test_unit:
     # The type of runner that the job will run on
     strategy:
-      #matrix:
-        #os: [ubuntu-latest, macos-latest]
-        #python-version: [3.7, 3.8, 3.9]
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+        python-version: [3.7, 3.8, 3.9]
       fail-fast: false
-    #runs-on: ${{ matrix.os }}
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
 
     # Steps represent a sequence of tasks that will be executed as part of the job
     steps:
     - name: Checkout the commit
-      uses: actions/checkout@v2 #jg: build in
+      uses: actions/checkout@v2
       
     - name: setup python # ${{ matrix.python-version }}
-      uses: actions/setup-python@v2 #jg: build in via gh
+      uses: actions/setup-python@v2
       with:
-        python-version: 3.7
-        #python-version: ${{ matrix.python-version }}
+        python-version: ${{ matrix.python-version }}
         
     #- name: create conda env
     #  run: $CONDA/bin/conda env create -f environment.yml
         
-    - name: activate conda
-      uses: conda-incubator/setup-miniconda@v2
-      with:
-        activate-environment: bmi_lstm
-        environment-file: ./environment.yml
-        auto-activate-base: false
+    #- name: activate conda
+    #  uses: conda-incubator/setup-miniconda@v2
+    #  with:
+    #    activate-environment: bmi_lstm
+    #    environment-file: ./environment.yml
+    #    auto-activate-base: false
         
     - name: install packages
       run: |
@@ -56,4 +54,5 @@ jobs:
         pip install -e .
       
     - name: Run Unit Test LSTM
-      run: python lstm/run_bmi_unit_test.py
+      #run: python lstm/run_bmi_unit_test.py
+      run: python -m lstm
