@@ -1,6 +1,6 @@
 # Test changes that have been pushed to the master
 
-name: Testing and Validation
+name: BMI Unit Testing and Model Standalone
 
 # Controls when the action will run.
 on:
@@ -8,11 +8,9 @@ on:
     branches: [ master ]
   pull_request:
     branches: [ master ]
-  workflow_dispatch:
+  #workflow_dispatch:
 
 #env:
-  # Obtained from https://docs.github.com/en/actions/using-github-hosted-runners/about-github-hosted-runners#supported-runners-and-hardware-resources
-  # TODO: add something later that can check the runners for hyperthreading
   #LINUX_NUM_PROC_CORES: 2
   #MACOS_NUM_PROC_CORES: 3
 
@@ -23,8 +21,8 @@ jobs:
     # The type of runner that the job will run on
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest]
-        python-version: [3.7, 3.8, 3.9]
+        os: [ubuntu-latest, macos-latest] # windows will fail(?)
+        python-version: [3.7, 3.8, 3.9] # 3.9(+) will fail
       fail-fast: false
     runs-on: ${{ matrix.os }}
 
@@ -46,6 +44,7 @@ jobs:
       with:
         activate-environment: bmi_lstm
         environment-file: ./environment.yml
+        # this may not be necessary? tbd..
         auto-activate-base: false
         
     - name: install packages
@@ -53,8 +52,10 @@ jobs:
         python -m pip install --upgrade pip
         pip install -e .
       
+    # RUN MAIN BMI UNIT TEST
     - name: Run BMI Unit Test LSTM
       run: python lstm/run_bmi_unit_test.py
       
+    # RUN MAIN STANDALONE SCRIPT
     - name: Run Standalone LSTM
       run: python -m lstm
