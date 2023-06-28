@@ -8,7 +8,8 @@ on:
     branches: [ master ]
   pull_request:
     branches: [ master ]
-  #workflow_dispatch:
+  #this will allow a manual trigger
+  workflow_dispatch:
 
 #env:
   #LINUX_NUM_PROC_CORES: 2
