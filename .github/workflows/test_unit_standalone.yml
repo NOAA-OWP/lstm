@@ -1,0 +1,62 @@
+# Test changes that have been pushed to the master
+
+name: BMI Unit Testing and Model Standalone
+
+# Controls when the action will run.
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+  #this will allow a manual trigger
+  workflow_dispatch:
+
+#env:
+  #LINUX_NUM_PROC_CORES: 2
+  #MACOS_NUM_PROC_CORES: 3
+
+# A workflow run is made up of one or more jobs that can run sequentially or in parallel
+jobs:
+  # Run general unit tests in linux environment
+  test_unit:
+    # The type of runner that the job will run on
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest] # windows will fail(?)
+        python-version: [3.7, 3.8, 3.9] # 3.9(+) will fail
+      fail-fast: false
+    runs-on: ${{ matrix.os }}
+
+    # Steps represent a sequence of tasks that will be executed as part of the job
+    steps:
+    - name: Checkout the commit
+      uses: actions/checkout@v2
+      
+    - name: setup python # ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+        
+    #- name: create conda env
+    #  run: $CONDA/bin/conda env create -f environment.yml
+        
+    - name: activate conda
+      uses: conda-incubator/setup-miniconda@v2
+      with:
+        activate-environment: bmi_lstm
+        environment-file: ./environment.yml
+        # this may not be necessary? tbd..
+        auto-activate-base: false
+        
+    - name: install packages
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .
+      
+    # RUN MAIN BMI UNIT TEST
+    - name: Run BMI Unit Test LSTM
+      run: python lstm/run_bmi_unit_test.py
+      
+    # RUN MAIN STANDALONE SCRIPT
+    - name: Run Standalone LSTM
+      run: python -m lstm
