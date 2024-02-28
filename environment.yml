@@ -12,7 +12,7 @@ dependencies:
   - matplotlib
   - netcdf4
   - pandas
-  - python=3.7
+  - python
   - pytorch
   - ruamel.yaml
   - xarray=0.16.0
