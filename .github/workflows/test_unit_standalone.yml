@@ -23,7 +23,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest] # windows will fail(?)
-        python-version: [3.7, 3.8, 3.9, '3.10', 3.11, 3.12]
+        python-version: ['3.10', 3.11, 3.12]
       fail-fast: false
     runs-on: ${{ matrix.os }}
 
@@ -32,10 +32,10 @@ jobs:
     - name: Checkout the commit
       uses: actions/checkout@v4
       
-    #- name: setup python # ${{ matrix.python-version }}
-    #  uses: actions/setup-python@v4
-    #  with:
-    #    python-version: ${{ matrix.python-version }}
+    - name: setup python # ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
         
     #- name: create conda env
     #  run: $CONDA/bin/conda env create -f environment.yml
