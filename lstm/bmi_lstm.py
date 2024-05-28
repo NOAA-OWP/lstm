@@ -804,30 +804,30 @@ class bmi_LSTM(Bmi):
         #self.get_value_ptr(var_name)[:] = values
         internal_array[:] = values
 
-        #short_name = self._var_name_map_long_first[ var_name ]
+        short_name = self._var_name_map_long_first[ var_name ]
         
         # Better approach, assuming type is "ndarray" (SDP)
         # setattr( self, short_name, values )
 
-#         if (value.ndim > 0):
-#             setattr( self, short_name, value[0])
-#         else:
-#             setattr( self, short_name, value )
+        if (internal_array.ndim > 0):
+            setattr( self, short_name, internal_array[0])
+        else:
+            setattr( self, short_name, internal_array )
             
-#         try: 
-#             #NJF From NGEN, `value` is a singleton array
-#             setattr( self, var_name, value[0] )
-#         
-#             # jmframe: this next line is basically a duplicate. 
-#             # I guess we should stick with the attribute names instead of a dictionary approach. 
-#             self._values[var_name] = value[0]
-#         # JLG 03242022: this isn't really an "error" block as standalone considers value as scalar?
-#         except TypeError:
-#             setattr( self, var_name, value )
-#         
-#             # jmframe: this next line is basically a duplicate. 
-#             # I guess we should stick with the attribute names instead of a dictionary approach. 
-#             self._values[var_name] = value
+        try: 
+            #NJF From NGEN, `internal_array` is a singleton array
+            setattr( self, var_name, internal_array[0] )
+        
+            # jmframe: this next line is basically a duplicate. 
+            # I guess we should stick with the attribute names instead of a dictionary approach. 
+            self._values[var_name] = internal_array[0]
+        # JLG 03242022: this isn't really an "error" block as standalone considers value as scalar?
+        except TypeError:
+            setattr( self, var_name, internal_array )
+        
+            # jmframe: this next line is basically a duplicate. 
+            # I guess we should stick with the attribute names instead of a dictionary approach. 
+            self._values[var_name] = internal_array
 
     #------------------------------------------------------------ 
     def set_value_at_indices(self, var_name: str, inds: np.ndarray, src: np.ndarray):
