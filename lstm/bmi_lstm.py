@@ -5,7 +5,6 @@ import time
 # Basic utilities
 import numpy as np
 import pandas as pd
-import pickle
 from pathlib import Path 
 # Configuration file functionality
 import yaml
@@ -20,14 +19,6 @@ import lstm.nextgen_cuda_lstm as nextgen_cuda_lstm   # (SDP)
 ### from torch import nn
 ### import sys
 
-#------------------------------------------------------------------------
-# Note: LSTM reads training data from a pickle file with extension ".p"
-#       that includes an object created by xarray v.0.16.0 or earlier.
-#       So that version of xarray must be installed to avoid the error
-#       message:
-#       AttributeError: 'Dataset' object has no attribute '_file obj'
-#       See: https://stackoverflow.com/questions/66432884/
-#            error-using-rioxarray-in-jupyter-notebook
 #------------------------------------------------------------------------
 USE_PATH = True  # (SDP)
 if not(USE_PATH):
@@ -94,67 +85,25 @@ class bmi_LSTM(Bmi):
     #------------------------------------------------------
     #_var_name_map_long_first = {
     _var_name_units_map = {
-                                'land_surface_water__runoff_volume_flux':['streamflow_cms','m3 s-1'],
-                                'land_surface_water__runoff_depth':['streamflow_m','m'],
-                                #--------------   Dynamic inputs --------------------------------
-                                #NJF Let the model assume equivalence of `kg m-2` == `mm h-1` since we can't convert
-                                #mass flux automatically from the ngen framework
-                                #'atmosphere_water__time_integral_of_precipitation_mass_flux':['total_precipitation','kg m-2'],
-                                'atmosphere_water__liquid_equivalent_precipitation_rate':['total_precipitation','mm h-1'],
-                                ## 'atmosphere_water__liquid_equivalent_precipitation_rate':['precip', 'mm h-1'], ##### SDP
-                                ## 'atmosphere_water__time_integral_of_precipitation_mass_flux':['total_precipitation','mm h-1'],
-                                'land_surface_radiation~incoming~longwave__energy_flux':['longwave_radiation','W m-2'],
-                                'land_surface_radiation~incoming~shortwave__energy_flux':['shortwave_radiation','W m-2'],
-                                'atmosphere_air_water~vapor__relative_saturation':['specific_humidity','kg kg-1'],
-                                'land_surface_air__pressure':['pressure','Pa'],
-                                'land_surface_air__temperature':['temperature','degC'],
-                                'land_surface_wind__x_component_of_velocity':['wind_u','m s-1'],
-                                'land_surface_wind__y_component_of_velocity':['wind_v','m s-1'],
-                                #--------------   STATIC Attributes -----------------------------
-                                'basin__area':['area_gages2','km2'],
-                                'ratio__mean_potential_evapotranspiration__mean_precipitation':['aridity','-'],
-                                'basin__carbonate_rocks_area_fraction':['carbonate_rocks_frac','-'],
-                                'soil_clay__volume_fraction':['clay_frac','percent'],
-                                'basin__mean_of_elevation':['elev_mean','m'],
-                                'land_vegetation__forest_area_fraction':['frac_forest','-'],
-                                'atmosphere_water__precipitation_falling_as_snow_fraction':['frac_snow','-'],
-                                'bedrock__permeability':['geol_permeability','m2'],
-                                'land_vegetation__max_monthly_mean_of_green_vegetation_fraction':['gvf_max','-'],
-                                'land_vegetation__diff__max_min_monthly_mean_of_green_vegetation_fraction':['gvf_diff','-'],
-                                'atmosphere_water__mean_duration_of_high_precipitation_events':['high_prec_dur','d'],
-                                'atmosphere_water__frequency_of_high_precipitation_events':['high_prec_freq','d yr-1'],
-                                'land_vegetation__diff_max_min_monthly_mean_of_leaf-area_index':['lai_diff','-'],
-                                'land_vegetation__max_monthly_mean_of_leaf-area_index':['lai_max','-'],
-                                'atmosphere_water__low_precipitation_duration':['low_prec_dur','d'],
-                                'atmosphere_water__precipitation_frequency':['low_prec_freq','d yr-1'],
-                                'maximum_water_content':['max_water_content','m'],
-                                'atmosphere_water__daily_mean_of_liquid_equivalent_precipitation_rate':['p_mean','mm d-1'],
-                                'land_surface_water__daily_mean_of_potential_evaporation_flux':['pet_mean','mm d-1'],
-                                'basin__mean_of_slope':['slope_mean','m km-1'],
-                                'soil__saturated_hydraulic_conductivity':['soil_conductivity','cm hr-1'],
-                                'soil_bedrock_top__depth__pelletier':['soil_depth_pelletier','m'],
-                                'soil_bedrock_top__depth__statsgo':['soil_depth_statsgo','m'],
-                                'soil__porosity':['soil_porosity','-'],
-                                'soil_sand__volume_fraction':['sand_frac','percent'],
-                                'soil_silt__volume_fraction':['silt_frac','percent'], 
-                                'basin_centroid__latitude':['gauge_lat', 'degrees'],
-                                'basin_centroid__longitude':['gauge_lon', 'degrees']
-                                 }
+        'land_surface_water__runoff_volume_flux':['streamflow_cms','m3 s-1'],
+        'land_surface_water__runoff_depth':['streamflow_m','m'],
+        #--------------   Dynamic inputs --------------------------------
+        #NJF Let the model assume equivalence of `kg m-2` == `mm h-1` since we can't convert
+        #mass flux automatically from the ngen framework
+        'atmosphere_water__liquid_equivalent_precipitation_rate':['APCP_surface','mm h-1'],
+        'land_surface_radiation~incoming~longwave__energy_flux':['DLWRF_surface','W m-2'],
+        'land_surface_radiation~incoming~shortwave__energy_flux':['DSWRF_surface','W m-2'],
+        'atmosphere_air_water~vapor__relative_saturation':['SPFH_2maboveground','kg kg-1'],
+        'land_surface_air__pressure':['PRES_surface','Pa'],
+        'land_surface_air__temperature':['TMP_2maboveground','degC'],
+        'land_surface_wind__x_component_of_velocity':['UGRD_10maboveground','m s-1'],
+        'land_surface_wind__y_component_of_velocity':['VGRD_10maboveground','m s-1'],
+        #--------------   STATIC Attributes -----------------------------
+        'basin__mean_of_elevation':['elev_mean','m'],
+        'basin__mean_of_slope':['slope_mean','m km-1'],
+        }
 
-    #------------------------------------------------------
-    # A list of static attributes. Not all these need to be used.
-    #------------------------------------------------------
-    #   These attributes can be anaything, but usually come from the CAMELS attributes:
-    #   Nans Addor Andrew J. Newman, Naoki Mizukami, and Martyn P. Clark
-    #   The CAMELS data set: catchment attributes and meteorology for large-sample studies
-    #   https://doi.org/10.5194/hess-21-5293-2017
-    _static_attributes_list = ['area_gages2','aridity','carbonate_rocks_frac','clay_frac',
-                               'elev_mean','frac_forest','frac_snow','geol_permeability',
-                               'gvf_max','gvf_diff','high_prec_dur','high_prec_freq','lai_diff',
-                               'lai_max','low_prec_dur','low_prec_freq','max_water_content',
-                               'p_mean','pet_mean','slope_mean','soil_conductivity',
-                               'soil_depth_pelletier','soil_depth_statsgo','soil_porosity',
-                               'sand_frac','silt_frac', 'gauge_lat', 'gauge_lon']
+    _static_attributes_list = ['elev_mean','slope_mean']
     
     def __getattribute__(self, item):
         """
@@ -394,11 +343,6 @@ class bmi_LSTM(Bmi):
                     cfg = yaml.safe_load(fp)
                 self.cfg_train = self._parse_config(cfg)
                 
-#         if self.cfg_bmi['train_cfg_file'] is not None:
-#             with self.cfg_bmi['train_cfg_file'].open('r') as fp:
-#                 cfg = yaml.safe_load(fp)
-#             self.cfg_train = self._parse_config(cfg)
-
         # Collect the LSTM model architecture details from the configuration file
         self.input_size        = len(self.cfg_train['dynamic_inputs']) + len(self.cfg_train['static_attributes'])
         self.hidden_layer_size = self.cfg_train['hidden_size']
@@ -413,20 +357,15 @@ class bmi_LSTM(Bmi):
         self.all_lstm_inputs.extend(self.cfg_train['static_attributes'])
         
         # Scaler data from the training set. This is used to normalize the data (input and output).
-        if (USE_PATH):   # (SDP)
-            with open(self.cfg_train['run_dir'] / 'train_data' / 'train_data_scaler.p', 'rb') as fb:
-                self.train_data_scaler = pickle.load(fb)
-        else:
-            p_file = self.cfg_train['run_dir'] + '/train_data/' + 'train_data_scaler.p'  # SDP
-            p_file = p_file.replace('./', os.getcwd() + '/')
-            # print('p_file =', p_file)
-            # print('type(p_file) =', type(p_file))
-            # print()
-            with open(p_file,'rb') as fb:
-                self.train_data_scaler = pickle.load(fb)
-                
-#         with open(self.cfg_train['run_dir'] / 'train_data' / 'train_data_scaler.p', 'rb') as fb:
-#             self.train_data_scaler = pickle.load(fb)
+        scaler_file = os.path.join(self.cfg_train['run_dir'], 'train_data', 'train_data_scaler.yml')
+
+        with open(scaler_file, 'r') as f:
+            scaler_data = yaml.safe_load(f)
+
+        self.attribute_means = scaler_data.get('attribute_means', {})
+        self.attribute_stds = scaler_data.get('attribute_stds', {})
+        self.feature_scale = {k: v['data'] for k, v in scaler_data['xarray_feature_scale']['data_vars'].items()}
+        self.feature_center = {k: v['data'] for k, v in scaler_data['xarray_feature_center']['data_vars'].items()}
 
     #------------------------------------------------------------ 
     def get_scaler_values(self):
@@ -457,8 +396,6 @@ class bmi_LSTM(Bmi):
         #        to the model's short name before taking action.
         #------------------------------------------------------------        
         # TODO: Choose to store values in dictionary or not.
-        # self.input_array = np.array([getattr(self, self._var_name_map_short_first[x]) for x in self.all_lstm_inputs])
-        # self.input_array = np.array([self._values[self._var_name_map_short_first[x]] for x in self.all_lstm_inputs])
 
         #--------------------------------------------------------------        
         # Note:  The code in this block is more verbose, but makes it
@@ -548,12 +485,6 @@ class bmi_LSTM(Bmi):
                 #------------------------------------------------------------
                 setattr(self, attribute, self.cfg_bmi[attribute])  # SDP
 
-                ## long_var_name = self._var_name_map_short_first[attribute]
-                ## setattr(self, long_var_name, self.cfg_bmi[attribute])
-                
-                # and this is just in case. _values dictionary is in the example
-                #self._values[long_var_name] = self.cfg_bmi[attribute]
-    
     #---------------------------------------------------------------------------- 
     def initialize_forcings(self):
         print('Initializing all forcings to 0...')
@@ -567,7 +498,6 @@ class bmi_LSTM(Bmi):
             #        to the model's short name before taking action.
             #------------------------------------------------------------
             setattr(self, forcing_name, 0)
-            ## setattr(self, self._var_name_map_short_first[forcing_name], 0)
 
     #-------------------------------------------------------------------
     #-------------------------------------------------------------------
@@ -646,39 +576,9 @@ class bmi_LSTM(Bmi):
         np.ndarray
             Value array.
         """
-        # if getattr(self, var_name) != self._values[var_name]:
-        #     if self.verbose > 0:
-        #         print("WARNING: The variable ({}) stored in two locations is inconsistent".format(var_name))
-        #         print('getattr(self, var_name)', getattr(self, var_name))
-        #         print('self.surface_runoff_mm', self.surface_runoff_mm)
-        #         print('self._values[var_name]', self._values[var_name])
-
         # We actually need this function to return the backing array, so bypass override of __getattribute__ (that
         # extracts scalar) and use the base implementation
         return super(bmi_LSTM, self).__getattribute__(var_name)
-
-
-    #-------------------------------------------------------------------
-#     def get_value_ptr(self, var_name):
-#         """Reference to values.
-#         Parameters
-#         ----------
-#         var_name : str
-#             Name of variable as CSDMS Standard Name.
-#         Returns
-#         -------
-#         array_like
-#             Value array.
-#         """
-#         if getattr(self, var_name) != self._values[var_name]:
-#             if self.verbose > 0:
-#                 print("WARNING: The variable ({}) stored in two locations is inconsistent".format(var_name))
-#                 print('getattr(self, var_name)', getattr(self, var_name))
-#                 print('self.surface_runoff_mm', self.surface_runoff_mm)
-#                 print('self._values[var_name]', self._values[var_name])
-#         
-#         return getattr(self, var_name)   # We don't need to store the variable in a dict and as attributes
-# #        return self._values[var_name]   # Pick a place to store them and stick with it.
 
     #-------------------------------------------------------------------
     #-------------------------------------------------------------------
@@ -708,8 +608,6 @@ class bmi_LSTM(Bmi):
         str
             Data type.
         """
-        #NJF Need an actual type here...
-        #return type(self.get_value_ptr(long_var_name)).__name__ #.dtype
 
         #JG MW 03.01.23 - otherwise Bmi_py_Adaptor.hpp `get_analogous_cxx_type` fails
         return self.get_value_ptr(long_var_name).dtype.name
@@ -722,11 +620,7 @@ class bmi_LSTM(Bmi):
 
     #------------------------------------------------------------ 
     def get_var_itemsize(self, name):
-#        return np.dtype(self.get_var_type(name)).itemsize
-        # SDP. get_value() -> get_value_ptr()
-        
         # JG get_value_ptr is already an np.array
-        # return np.array(self.get_value_ptr(name)).itemsize
         return self.get_value_ptr(name).itemsize  
 
     #------------------------------------------------------------ 
@@ -763,31 +657,12 @@ class bmi_LSTM(Bmi):
 
         return self._time_step_size
         
-        # Note: get_attribute() is not a BMI v2 method
-        # return self.get_attribute( 'time_step_size' )
-
     #-------------------------------------------------------------------
     def get_time_units( self ):
 
         # Note: get_attribute() is not a BMI v2 method
         return self._time_units
-        # return self.get_attribute( 'time_units' )
 
-    #-------------------------------------------------------------------
-#     def set_value(self, var_name: str, values: np.ndarray):
-#         """Set model values.
-# 
-#         Parameters
-#         ----------
-#         var_name : str
-#             Name of variable as CSDMS Standard Name.
-#         values : np.ndarray
-#               Array of new values.
-#         """
-#         internal_array = self.get_value_ptr(var_name)
-#         #self.get_value_ptr(var_name)[:] = values
-#         internal_array[:] = values
-               
     #-------------------------------------------------------------------
     def set_value(self, var_name: str, values:np.ndarray):
         """Set model values.
@@ -801,14 +676,10 @@ class bmi_LSTM(Bmi):
         """
     
         internal_array = self.get_value_ptr(var_name)
-        #self.get_value_ptr(var_name)[:] = values
         internal_array[:] = values
 
         short_name = self._var_name_map_long_first[ var_name ]
         
-        # Better approach, assuming type is "ndarray" (SDP)
-        # setattr( self, short_name, values )
-
         if (internal_array.ndim > 0):
             setattr( self, short_name, internal_array[0])
         else:
@@ -847,33 +718,6 @@ class bmi_LSTM(Bmi):
         for i in range(inds.shape[0]):
             internal_array[inds[i]] = src[i]
 
-
-    #------------------------------------------------------------ 
-#     def set_value_at_indices(self, name, inds, src):
-#         """Set model values at particular indices.
-#         Parameters
-#         ----------
-#         var_name : str
-#             Name of variable as CSDMS Standard Name.
-#         src : array_like
-#             Array of new values.
-#         indices : array_like
-#             Array of indices.
-#         """
-#         # JG Note: TODO confirm this is correct. Get/set values ~=
-# #        val = self.get_value_ptr(name)
-# #        val.flat[inds] = src
-# 
-#         #JMFrame: chances are that the index will be zero, so let's include that logic
-#         if np.array(self.get_value(name)).flatten().shape[0] == 1:
-#             self.set_value(name, src)
-#         else:
-#             # JMFrame: Need to set the value with the updated array with new index value
-#             val = self.get_value_ptr(name)
-#             for i in inds.shape:
-#                 val.flatten()[inds[i]] = src[i]
-#             self.set_value(name, val)
-
     #------------------------------------------------------------ 
     def get_var_nbytes(self, var_name):
         """Get units of variable.
@@ -886,16 +730,6 @@ class bmi_LSTM(Bmi):
         int
             Size of data array in bytes.
         """
-        # JMFrame NOTE: Had to import sys for this function
-        #NJF getsizeof returns the size of the python object...not the raw dtype...
-        #return sys.getsizeof(self.get_value_ptr(var_name))
-        #This is just the itemsize (size per element) * number of elements
-        #Since all are currently scalar, this is 1
-        #try:
-        #    return self.get_var_itemsize(var_name)*len(self.get_value_ptr(var_name))
-        #except TypeError:
-        #    #must be scalar
-        #    return self.get_var_itemsize(var_name)
         return self.get_var_itemsize(var_name)*len(self.get_value_ptr(var_name))
 
     #------------------------------------------------------------ 
@@ -916,9 +750,6 @@ class bmi_LSTM(Bmi):
         """
         #NJF This must copy into dest!!!
         #Convert to np.array in case of singleton/non numpy type, then flatten
-        ## data = np.array(self.get_value(var_name)).flatten()
-        #data = np.ndarray(self.get_value_ptr(var_name)).flatten()  #### SDP
-        #dest[:] = data[indices]
         original: np.ndarray = self.get_value_ptr(var_name)
         for i in range(indices.shape[0]):
             value_index = indices[i]
