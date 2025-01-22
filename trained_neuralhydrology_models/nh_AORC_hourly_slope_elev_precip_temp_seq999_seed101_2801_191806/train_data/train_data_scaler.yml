@@ -1,0 +1,40 @@
+attribute_means:
+  elev_mean: 715.0357281553398
+  slope_mean: 45.73078805825243
+attribute_stds:
+  elev_mean: 772.9868594812874
+  slope_mean: 46.97479379837598
+xarray_feature_scale:
+  coords: {}
+  attrs: {}
+  dims: {}
+  data_vars:
+    APCP_surface:
+      dims: []
+      attrs: {}
+      data: 0.8656719923019409
+    QObs(mm/h):
+      dims: []
+      attrs: {}
+      data: 0.18175311386585236
+    TMP_2maboveground:
+      dims: []
+      attrs: {}
+      data: 45.76715850830078
+xarray_feature_center:
+  coords: {}
+  attrs: {}
+  dims: {}
+  data_vars:
+    APCP_surface:
+      dims: []
+      attrs: {}
+      data: 0.14485099911689758
+    QObs(mm/h):
+      dims: []
+      attrs: {}
+      data: 0.07877858728170395
+    TMP_2maboveground:
+      dims: []
+      attrs: {}
+      data: 284.62091064453125

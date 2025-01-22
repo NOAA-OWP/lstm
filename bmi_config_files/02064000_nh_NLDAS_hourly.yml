@@ -1,0 +1,11 @@
+area_sqkm: 142.18
+basin_id: 12010000
+basin_name: NASELLE RIVER NEAR NASELLE, WA
+elev_mean: 145.18
+initial_state: zero
+lat: 46.37399
+lon: -123.74348
+slope_mean: 47.2961
+time_step: 1 hour
+train_cfg_file: ../trained_neuralhydrology_models/nh_AORC_hourly_slope_elev_precip_temp_seq999_seed101_2801_191806/config.yml
+verbose: 0

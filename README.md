@@ -15,7 +15,9 @@ This Long Short-Term Memory (LSTM) network was developed for use in the [Next Ge
 This module is dependent on a trained deep learning model. The forward pass of this LSTM model [`nextgen_cuda_lstm.py`](./lstm/nextgen_cuda_lstm.py) is heavily based on NeuralHydrology's [`CudaLSTM`](https://neuralhydrology.readthedocs.io/en/latest/usage/models.html#cudalstm). Other model classes can be applied but [`bmi_lstm.py`](./lstm/bmi_lstm.py) would need to load it in. More information about the python package NeuralHydrology can be found [here](https://neuralhydrology.readthedocs.io/en/latest/).  
 
 ## Sample Data
-All data required for a test run of this model is available in the [`data/`](./data) directory. This includes:
+
+### NLDAS sample data
+Sample data required for a test run of this model is available in the [`data/`](./data) directory. This includes:
 * Forcing data: `usgs-streamflow-nldas_hourly.nc`
 * Observation values: also included in `usgs-streamflow-nldas_hourly.nc`
 * Static attributes: see an example configuration file for a list of these attributes in [`./bmi_config_files`](./bmi_config_files/01022500_hourly_all_attributes_forcings.yml) 
@@ -27,6 +29,9 @@ for four USGS gauges:
 * 01022500 Narraguagus River at Cherryfield, Maine  
 
 Note that the data found in this repository are simply examples. The LSTM model can be run on any watershed, provided the necessary static attributes and dynamic forcings. The full list of attributes differs depending on the trained LSTM model chosen. Example files (`*.yml`) with the required attributes are located in the [`./bmi_config_files`](./bmi_config_files)directory. The attributes required for these configuration files can be found in the [`camels_attributes_v2.0/`](./data/camels_attributes_v2.0) data directory for catchments in the CAMELS dataset or estimated from [Addor, N., A.J. Newman, N. Mizukami, and M.P. Clark. 2017. The CAMELS data set: catchment attributes and meteorology for large-sample studies. Hydrol. Earth Syst. Sci. 21: 5293-5313. https://doi.org/10.5194/hess-21-5293-2017](https://doi.org/10.5194/hess-21-5293-2017).  
+
+### AORC Sample Data
+To run a sample with AORC, you can clone this repository that has data from several camples basins: [https://github.com/NWC-CUAHSI-Summer-Institute/CAMELS_data_sample](https://github.com/NWC-CUAHSI-Summer-Institute/CAMELS_data_sample). You'll need to change the paths in the sample AORC notebook.
 
 ## Configurations
 The LSTM model requires a configuration file for specification of forcings, weights, scalers, run options (like warmup period), runtime period, static basin parameters and model time step. This configuration file needs to be generated for any specific application of the LSTM model.
