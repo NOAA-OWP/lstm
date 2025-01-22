@@ -14,6 +14,7 @@ import torch
 # Here is the LSTM model we want to run
 # import nextgen_cuda_lstm
 import lstm.nextgen_cuda_lstm as nextgen_cuda_lstm   # (SDP)
+import os
 
 # These are not used (SDP)
 ### from torch import nn
@@ -200,8 +201,8 @@ class bmi_LSTM(Bmi):
         for var_name in list(self._var_name_units_map.keys()):
             # ---------- All the variables are single values ------------------#
             # ---------- so just set to zero for now.        ------------------#
-            self._values[var_name] = 0
-            setattr( self, var_name, 0 )
+            self._values[var_name] = 0.0
+            setattr( self, var_name, 0.0 )
         
         # -------------- Read in the BMI configuration -------------------------#
         # This will direct all the next moves.
@@ -237,6 +238,7 @@ class bmi_LSTM(Bmi):
 
         # Trained model weights from Neuralhydrology.
         if (USE_PATH):  # (SDP)
+            print(self.cfg_train['run_dir'])
             trained_model_file = self.cfg_train['run_dir'] / 'model_epoch{}.pt'.format(str(self.cfg_train['epochs']).zfill(3))
         else:
             str1 = self.cfg_train['run_dir'] + '/' + 'model_epoch{}.pt'
@@ -357,33 +359,52 @@ class bmi_LSTM(Bmi):
         self.all_lstm_inputs.extend(self.cfg_train['static_attributes'])
         
         # Scaler data from the training set. This is used to normalize the data (input and output).
+        print(self.cfg_train['run_dir'])
+        print(self.cfg_train['run_dir'])
         scaler_file = os.path.join(self.cfg_train['run_dir'], 'train_data', 'train_data_scaler.yml')
 
         with open(scaler_file, 'r') as f:
             scaler_data = yaml.safe_load(f)
 
+        self.train_data_scaler = scaler_data
+
         self.attribute_means = scaler_data.get('attribute_means', {})
         self.attribute_stds = scaler_data.get('attribute_stds', {})
         self.feature_scale = {k: v['data'] for k, v in scaler_data['xarray_feature_scale']['data_vars'].items()}
         self.feature_center = {k: v['data'] for k, v in scaler_data['xarray_feature_center']['data_vars'].items()}
-
-    #------------------------------------------------------------ 
+        print(self.feature_center)
+        print(self.feature_scale)
+        print(self.attribute_means)
+        print(self.attribute_stds)
+        #if self.verbose:
+        #print(scaler_data)
+    #------------------------------------------------------------
     def get_scaler_values(self):
 
-        """Mean and standard deviation for the inputs and LSTM outputs""" 
+        """Mean and standard deviation for the inputs and LSTM outputs"""
 
-        self.out_mean = self.train_data_scaler['xarray_feature_center'][self.cfg_train['target_variables'][0]].values
-        self.out_std = self.train_data_scaler['xarray_feature_scale'][self.cfg_train['target_variables'][0]].values
+        self.out_mean = self.train_data_scaler['xarray_feature_center']['data_vars'][self.cfg_train['target_variables'][0]]['data']
+        self.out_std = self.train_data_scaler['xarray_feature_scale']['data_vars'][self.cfg_train['target_variables'][0]]['data']
 
         self.input_mean = []
-        self.input_mean.extend([self.train_data_scaler['xarray_feature_center'][x].values for x in self.cfg_train['dynamic_inputs']])
+        self.input_mean.extend([self.train_data_scaler['xarray_feature_center']['data_vars'][x]['data'] for x in self.cfg_train['dynamic_inputs']])
         self.input_mean.extend([self.train_data_scaler['attribute_means'][x] for x in self.cfg_train['static_attributes']])
         self.input_mean = np.array(self.input_mean)
 
         self.input_std = []
-        self.input_std.extend([self.train_data_scaler['xarray_feature_scale'][x].values for x in self.cfg_train['dynamic_inputs']])
-        self.input_std.extend([self.train_data_scaler['attribute_stds'][x] for x in self.cfg_train['static_attributes']]) 
+        self.input_std.extend([self.train_data_scaler['xarray_feature_scale']['data_vars'][x]['data'] for x in self.cfg_train['dynamic_inputs']])
+        self.input_std.extend([self.train_data_scaler['attribute_stds'][x] for x in self.cfg_train['static_attributes']])
         self.input_std = np.array(self.input_std)
+        #if self.verbose:
+        print('###########################')
+        print('input_mean')
+        print(self.input_mean)
+        print('input_std')
+        print(self.input_std)
+        print('out_mean')
+        print(self.out_mean)
+        print('out_std')
+        print(self.out_std)
 
     #------------------------------------------------------------ 
     def create_scaled_input_tensor(self, VERBOSE=False):
@@ -445,22 +466,20 @@ class bmi_LSTM(Bmi):
     #------------------------------------------------------------ 
     def scale_output(self):
 
-        if self.cfg_train['target_variables'][0] == 'qobs_mm_per_hour':
+        print("model output:", self.lstm_output[0,0,0].numpy().tolist())
+
+        if self.cfg_train['target_variables'][0] in ['qobs_mm_per_hour', 'QObs(mm/hr)', 'QObs(mm/h)']:
             self.surface_runoff_mm = (self.lstm_output[0,0,0].numpy().tolist() * self.out_std + self.out_mean)
 
-        elif self.cfg_train['target_variables'][0] == 'QObs(mm/d)':
+        elif self.cfg_train['target_variables'][0] in ['QObs(mm/d)']:
             self.surface_runoff_mm = (self.lstm_output[0,0,0].numpy().tolist() * self.out_std + self.out_mean) * (1/24)
             
-        # Bound the runoff to zero or obs, as negative values are illogical
-        #if self.surface_runoff_mm < 0.0: self.surface_runoff_mm = 0.0
-        #np.maximum( self.surface_runoff_mm, 0.0, self.surface_runoff_mm)
         self.surface_runoff_mm = max(self.surface_runoff_mm,0.0)
 
-        #self._values['land_surface_water__runoff_depth'] = self.surface_runoff_mm/1000.0
         setattr(self, 'land_surface_water__runoff_depth', self.surface_runoff_mm/1000.0)
         self.streamflow_cms = self.surface_runoff_mm * self.output_factor_cms
+        print("streamflow:", self.streamflow_cms)
 
-        #self._values['land_surface_water__runoff_volume_flux'] = self.streamflow_cms
         setattr(self, 'land_surface_water__runoff_volume_flux', self.streamflow_cms)
 
     #-------------------------------------------------------------------
@@ -558,6 +577,7 @@ class bmi_LSTM(Bmi):
             Copy of values.
         """
         dest[:] = self.get_value_ptr(var_name)
+        print("get value dest", dest)
         return dest
 
     #-------------------------------------------------------------------
