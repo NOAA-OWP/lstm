@@ -42,7 +42,7 @@ output_activation: linear
 output_dropout: 0.4
 package_version: 1.10.0
 predict_last_n: 1
-run_dir: /home/jmframe/neuralhydrology/runs/nh_AORC_hourly_25yr_1210_112435
+run_dir: ../trained_neuralhydrology_models/nh_AORC_hourly_25yr_1210_112435
 save_weights_every: 1
 seed: 184778
 seq_length: 336

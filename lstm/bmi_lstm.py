@@ -219,6 +219,16 @@ class bmi_LSTM(Bmi):
         else:
             print("Error: No configuration provided, nothing to do...")
         
+        # Gather verbosity lvl from bmi-config for stdout printing, etc.    
+        self.verbose = self.cfg_bmi['verbose']
+        if self.verbose == 0:
+            print("Will not print anything except errors because verbosity set to", self.verbose)
+        if self.verbose == 1:
+            print("Will print warnings and errors because verbosity set to", self.verbose)
+        if self.verbose > 1:
+            print("Will print warnings, errors and random information because verbosity set to", self.verbose)
+        print("self.verbose", self.verbose)
+
         # ------------- Load in the configuration file for the specific LSTM --#
         # This will include all the details about how the model was trained
         # Inputs, outputs, hyper-parameters, scalers, weights, etc. etc.
@@ -238,7 +248,10 @@ class bmi_LSTM(Bmi):
 
         # Trained model weights from Neuralhydrology.
         if (USE_PATH):  # (SDP)
-            print(self.cfg_train['run_dir'])
+
+            if self.verbose > 0:
+                print(self.cfg_train['run_dir'])
+
             trained_model_file = self.cfg_train['run_dir'] / 'model_epoch{}.pt'.format(str(self.cfg_train['epochs']).zfill(3))
         else:
             str1 = self.cfg_train['run_dir'] + '/' + 'model_epoch{}.pt'
@@ -272,9 +285,6 @@ class bmi_LSTM(Bmi):
         # ----------- The output is area normalized, this is needed to un-normalize it
         #                         mm->m                             km2 -> m2          hour->s    
         self.output_factor_cms =  (1/1000) * (self.cfg_bmi['area_sqkm'] * 1000*1000) * (1/3600)
-
-        # Gather verbosity lvl from bmi-config for stdout printing, etc.    
-        self.verbose = self.cfg_bmi['verbose']
 
     #------------------------------------------------------------ 
     def update(self):
@@ -359,8 +369,10 @@ class bmi_LSTM(Bmi):
         self.all_lstm_inputs.extend(self.cfg_train['static_attributes'])
         
         # Scaler data from the training set. This is used to normalize the data (input and output).
-        print(self.cfg_train['run_dir'])
-        print(self.cfg_train['run_dir'])
+        if self.verbose > 1:
+            print(self.cfg_train['run_dir'])
+            print(self.cfg_train['run_dir'])
+
         scaler_file = os.path.join(self.cfg_train['run_dir'], 'train_data', 'train_data_scaler.yml')
 
         with open(scaler_file, 'r') as f:
@@ -372,12 +384,12 @@ class bmi_LSTM(Bmi):
         self.attribute_stds = scaler_data.get('attribute_stds', {})
         self.feature_scale = {k: v['data'] for k, v in scaler_data['xarray_feature_scale']['data_vars'].items()}
         self.feature_center = {k: v['data'] for k, v in scaler_data['xarray_feature_center']['data_vars'].items()}
-        print(self.feature_center)
-        print(self.feature_scale)
-        print(self.attribute_means)
-        print(self.attribute_stds)
-        #if self.verbose:
-        #print(scaler_data)
+        if self.verbose > 1:
+            print(self.feature_center)
+            print(self.feature_scale)
+            print(self.attribute_means)
+            print(self.attribute_stds)
+
     #------------------------------------------------------------
     def get_scaler_values(self):
 
@@ -395,19 +407,19 @@ class bmi_LSTM(Bmi):
         self.input_std.extend([self.train_data_scaler['xarray_feature_scale']['data_vars'][x]['data'] for x in self.cfg_train['dynamic_inputs']])
         self.input_std.extend([self.train_data_scaler['attribute_stds'][x] for x in self.cfg_train['static_attributes']])
         self.input_std = np.array(self.input_std)
-        #if self.verbose:
-        print('###########################')
-        print('input_mean')
-        print(self.input_mean)
-        print('input_std')
-        print(self.input_std)
-        print('out_mean')
-        print(self.out_mean)
-        print('out_std')
-        print(self.out_std)
+        if self.verbose > 1:
+            print('###########################')
+            print('input_mean')
+            print(self.input_mean)
+            print('input_std')
+            print(self.input_std)
+            print('out_mean')
+            print(self.out_mean)
+            print('out_std')
+            print(self.out_std)
 
     #------------------------------------------------------------ 
-    def create_scaled_input_tensor(self, VERBOSE=False):
+    def create_scaled_input_tensor(self):
 
         #------------------------------------------------------------
         # Note:  A BMI-enabled model should not use long var names
@@ -423,7 +435,8 @@ class bmi_LSTM(Bmi):
         #        much easier to test and debug and helped find a bug
         #        in the lines above (long vs. short names.) 
         #--------------------------------------------------------------
-        # print('Creating scaled input tensor...')
+        if self.verbose > 1:
+            print('Creating scaled input tensor...')
         n_inputs = len(self.all_lstm_inputs)
         self.input_list = []  #############
         DEBUG = False
@@ -434,7 +447,7 @@ class bmi_LSTM(Bmi):
             vals = getattr( self, short_name )  ####################
 
             self.input_list.append( vals )
-            if (VERBOSE or DEBUG):         
+            if self.verbose > 1:         
                 print('  short_name =', short_name )
                 print('  long_name  =', long_name )
                 array = getattr( self, short_name )
@@ -447,14 +460,14 @@ class bmi_LSTM(Bmi):
         #--------------------------------------------------------
         ## self.input_array = np.array( self.input_list )
         self.input_array = np.array( self.input_list, dtype='float64' )  # SDP
-        if (VERBOSE):
+        if self.verbose > 0:
             print('Normalizing the tensor...')
             print('  input_mean =', self.input_mean )
             print('  input_std  =', self.input_std  )
             print()
         # Center and scale the input values for use in torch
         self.input_array_scaled = (self.input_array - self.input_mean) / self.input_std
-        if (DEBUG):
+        if self.verbose > 1:
             print('### input_list =', self.input_list)
             print('### input_array =', self.input_array)
             print('### dtype(input_array) =', self.input_array.dtype )
@@ -466,7 +479,8 @@ class bmi_LSTM(Bmi):
     #------------------------------------------------------------ 
     def scale_output(self):
 
-        print("model output:", self.lstm_output[0,0,0].numpy().tolist())
+        if self.verbose > 1:
+            print("model output:", self.lstm_output[0,0,0].numpy().tolist())
 
         if self.cfg_train['target_variables'][0] in ['qobs_mm_per_hour', 'QObs(mm/hr)', 'QObs(mm/h)']:
             self.surface_runoff_mm = (self.lstm_output[0,0,0].numpy().tolist() * self.out_std + self.out_mean)
@@ -478,7 +492,9 @@ class bmi_LSTM(Bmi):
 
         setattr(self, 'land_surface_water__runoff_depth', self.surface_runoff_mm/1000.0)
         self.streamflow_cms = self.surface_runoff_mm * self.output_factor_cms
-        print("streamflow:", self.streamflow_cms)
+
+        if self.verbose > 1:
+            print("streamflow:", self.streamflow_cms)
 
         setattr(self, 'land_surface_water__runoff_volume_flux', self.streamflow_cms)
 
@@ -506,9 +522,13 @@ class bmi_LSTM(Bmi):
 
     #---------------------------------------------------------------------------- 
     def initialize_forcings(self):
-        print('Initializing all forcings to 0...')
+
+        if self.verbose > 0:
+            print('Initializing all forcings to 0...')
+
         for forcing_name in self.cfg_train['dynamic_inputs']:
-            print('  forcing_name =', forcing_name)
+            if self.verbose > 1:
+                print('  forcing_name =', forcing_name)
             #------------------------------------------------------------
             # Note:  A BMI-enabled model should not use long var names
             #        internally (i.e. saved into self); it should just
@@ -577,7 +597,11 @@ class bmi_LSTM(Bmi):
             Copy of values.
         """
         dest[:] = self.get_value_ptr(var_name)
-        print("get value dest", dest)
+
+        if self.verbose > 1:
+            print("self.verbose", self.verbose)
+            print("get value dest", dest)
+
         return dest
 
     #-------------------------------------------------------------------
