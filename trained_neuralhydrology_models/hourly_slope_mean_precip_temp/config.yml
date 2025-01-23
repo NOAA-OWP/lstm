@@ -13,7 +13,7 @@ experiment_name: hourly_slope_mean_precip_temp
 forcings: nldas_hourly
 head: regression
 hidden_size: 64
-img_log_dir: ./trained_neuralhydrology_models/hourly_slope_mean_precip_temp/img_log
+img_log_dir: ../trained_neuralhydrology_models/hourly_slope_mean_precip_temp/img_log
 initial_forget_bias: 3
 learning_rate:
   0: 0.0005
@@ -37,7 +37,7 @@ output_activation: linear
 output_dropout: 0.4
 package_version: 1.0.0-beta1
 predict_last_n: 24
-run_dir: ./trained_neuralhydrology_models/hourly_slope_mean_precip_temp
+run_dir: ../trained_neuralhydrology_models/hourly_slope_mean_precip_temp
 save_weights_every: 1
 seed: 102
 seq_length: 336

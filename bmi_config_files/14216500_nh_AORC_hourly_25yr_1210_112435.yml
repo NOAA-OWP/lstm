@@ -1,0 +1,11 @@
+time_step: '1 hour'
+initial_state: 'zero'
+basin_name: 'MUDDY CREEK BELOW CLEAR CREEK NEAR COUGAR, WA'
+basin_id: '14216500'
+area_sqkm: 349.52
+lat: 46.07567
+lon: -121.9987
+train_cfg_file: ../trained_neuralhydrology_models/nh_AORC_hourly_25yr_1210_112435/config.yml
+verbose: 0
+elev_mean: 824.9
+slope_mean: 115.75916
