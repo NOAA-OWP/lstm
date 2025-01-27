@@ -12,19 +12,19 @@ xarray_feature_scale:
     APCP_surface:
       dims: []
       attrs: {}
-      data: 0.8288211226463318
+      data: 0.8294922113418579
     DLWRF_surface:
       dims: []
       attrs: {}
-      data: 149.99867248535156
+      data: 149.94964599609375
     DSWRF_surface:
       dims: []
       attrs: {}
-      data: 226.59652709960938
+      data: 226.2925262451172
     PRES_surface:
       dims: []
       attrs: {}
-      data: 35655.68359375
+      data: 35709.50390625
     QObs(mm/h):
       dims: []
       attrs: {}
@@ -32,19 +32,19 @@ xarray_feature_scale:
     SPFH_2maboveground:
       dims: []
       attrs: {}
-      data: 0.005189969204366207
+      data: 0.005186231806874275
     TMP_2maboveground:
       dims: []
       attrs: {}
-      data: 98.48518371582031
+      data: 98.63380432128906
     UGRD_10maboveground:
       dims: []
       attrs: {}
-      data: 2.512176513671875
+      data: 2.5150809288024902
     VGRD_10maboveground:
       dims: []
       attrs: {}
-      data: 2.7658159732818604
+      data: 2.7686984539031982
 xarray_feature_center:
   coords: {}
   attrs: {}
@@ -53,36 +53,36 @@ xarray_feature_center:
     APCP_surface:
       dims: []
       attrs: {}
-      data: 0.14223065972328186
+      data: 0.1423874795436859
     DLWRF_surface:
       dims: []
       attrs: {}
-      data: 303.3072814941406
+      data: 303.1827697753906
     DSWRF_surface:
       dims: []
       attrs: {}
-      data: 188.65264892578125
+      data: 188.4970245361328
     PRES_surface:
       dims: []
       attrs: {}
-      data: 92957.125
+      data: 92957.4453125
     QObs(mm/h):
       dims: []
       attrs: {}
-      data: 0.07123018056154251
+      data: 0.07123023271560669
     SPFH_2maboveground:
       dims: []
       attrs: {}
-      data: 0.007017550989985466
+      data: 0.007006556261330843
     TMP_2maboveground:
       dims: []
       attrs: {}
-      data: 283.90106201171875
+      data: 283.87200927734375
     UGRD_10maboveground:
       dims: []
       attrs: {}
-      data: 0.9716606140136719
+      data: 0.97260981798172
     VGRD_10maboveground:
       dims: []
       attrs: {}
-      data: 0.46964654326438904
+      data: 0.4705375134944916

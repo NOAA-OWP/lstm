@@ -1,0 +1,45 @@
+NGen Framework 0.1.0
+Building Nexus collection
+Building Catchment collection
+Initializing formulations
+1: initialize('green')
+1: get_time_units()
+1: get_start_time()
+1: get_output_item_count()
+1: get_output_var_names()
+1: get_input_item_count()
+1: get_input_var_names()
+1: get_output_item_count()
+1: get_output_var_names()
+Building Feature Index
+Catchment topology is dendritic.
+Running Models
+Running timestep 0
+1: get_current_time()
+1: get_current_time()
+1: get_current_time()
+1: get_input_item_count()
+1: get_input_var_names()
+1: get_var_nbytes('input')
+1: get_var_itemsize('input')
+1: get_var_type('input')
+1: get_var_units('input')
+WARN: Unit conversion unsuccessful - Returning unconverted value! ("Unable to parse out_units value -")
+1: get_var_itemsize('input')
+1: get_var_type('input')
+1: get_var_nbytes('input')
+1: get_var_itemsize('input')
+1: set_value('input', array([361.30001831]))
+1: get_time_step()
+1: update()
+1: time stepped 1
+1: get_var_type('output')
+1: get_var_itemsize('output')
+1: get_var_type('output')
+1: get_var_itemsize('output')
+1: get_input_item_count()
+1: get_input_var_names()
+1: get_var_type('output')
+1: get_value_at_indices('output', array([0.]), array([0], dtype=int32))
+WARN: Unit conversion unsuccessful - Returning unconverted value! ("Unable to parse out_units value -")
+libc++abi: terminating due to uncaught exception of type pybind11::error_already_set: KeyError: ''

@@ -1,0 +1,14 @@
+time_step: '1 hour'
+initial_state: 'zero'
+basin_name: 'BALDHILL CREEK NR DAZEY, ND'
+basin_id: '05057200'
+area_sqkm: 1900
+lat: 47.22916
+lon: -98.12482
+train_cfg_file: 
+- ../trained_neuralhydrology_models/nh_AORC_hourly_25yr_1210_112435_7/config.yml
+- ../trained_neuralhydrology_models/nh_AORC_hourly_25yr_1210_112435_8/config.yml
+- ../trained_neuralhydrology_models/nh_AORC_hourly_25yr_1210_112435_9/config.yml
+verbose: 0
+elev_mean: 447.5
+slope_mean: 2.33897
