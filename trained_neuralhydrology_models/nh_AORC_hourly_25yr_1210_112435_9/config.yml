@@ -16,13 +16,13 @@ dynamic_inputs:
 - SPFH_2maboveground
 - UGRD_10maboveground
 - VGRD_10maboveground
-epochs: 7
+epochs: 9
 experiment_name: nh_AORC_hourly_25yr
 forcings:
 - aorc_hourly
 head: regression
 hidden_size: 64
-img_log_dir: /home/jmframe/neuralhydrology/runs/nh_AORC_hourly_25yr_1210_112435/img_log
+img_log_dir: /home/jmframe/neuralhydrology/runs/nh_AORC_hourly_25yr_1210_112435_9/img_log
 initial_forget_bias: 3
 learning_rate:
   0: 0.001
@@ -42,7 +42,7 @@ output_activation: linear
 output_dropout: 0.4
 package_version: 1.10.0
 predict_last_n: 1
-run_dir: ../trained_neuralhydrology_models/nh_AORC_hourly_25yr_1210_112435
+run_dir: ../trained_neuralhydrology_models/nh_AORC_hourly_25yr_1210_112435_9
 save_weights_every: 1
 seed: 184778
 seq_length: 336
@@ -55,7 +55,7 @@ test_basin_file: /home/jmframe/data/CAMELS_US/list_515_camels_basins_aorc.txt
 test_end_date: 30/09/2006
 test_start_date: 01/10/2005
 train_basin_file: /home/jmframe/data/CAMELS_US/list_515_camels_basins_aorc.txt
-train_dir: /home/jmframe/neuralhydrology/runs/nh_AORC_hourly_25yr_1210_112435/train_data
+train_dir: /home/jmframe/neuralhydrology/runs/nh_AORC_hourly_25yr_1210_112435_9/train_data
 train_end_date: 30/09/2023
 train_start_date: 01/10/1998
 validate_every: 1
