@@ -91,7 +91,7 @@ class bmi_LSTM(Bmi):
         'land_surface_radiation~incoming~shortwave__energy_flux':['DSWRF_surface','W m-2'],
         'atmosphere_air_water~vapor__relative_saturation':['SPFH_2maboveground','kg kg-1'],
         'land_surface_air__pressure':['PRES_surface','Pa'],
-        'land_surface_air__temperature':['TMP_2maboveground','degC'],
+        'land_surface_air__temperature':['TMP_2maboveground','degK'],
         'land_surface_wind__x_component_of_velocity':['UGRD_10maboveground','m s-1'],
         'land_surface_wind__y_component_of_velocity':['VGRD_10maboveground','m s-1'],
         #--------------   STATIC Attributes -----------------------------
