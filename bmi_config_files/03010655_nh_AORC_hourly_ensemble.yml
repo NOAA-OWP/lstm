@@ -1,11 +1,11 @@
-area_sqkm: 1897.33
-basin_id: 5057200
-basin_name: BALDHILL CREEK NR DAZEY, ND
-elev_mean: 447.5
+area_sqkm: 254.44
+basin_id: 3010655
+basin_name: Oswayo Creek at Shinglehouse, PA
+elev_mean: 635.06
 initial_state: zero
-lat: 47.22916
-lon: -98.12482
-slope_mean: 2.33897
+lat: 41.96173
+lon: -78.19807
+slope_mean: 32.95227
 time_step: 1 hour
 train_cfg_file:
 - ../trained_neuralhydrology_models/nh_AORC_hourly_25yr_1210_112435_7/config.yml

@@ -1,11 +1,11 @@
-area_sqkm: 1897.33
-basin_id: 5057200
-basin_name: BALDHILL CREEK NR DAZEY, ND
-elev_mean: 447.5
+area_sqkm: 184.94
+basin_id: 9386900
+basin_name: RIO NUTRIA NEAR RAMAH, NM
+elev_mean: 2341.65
 initial_state: zero
-lat: 47.22916
-lon: -98.12482
-slope_mean: 2.33897
+lat: 35.28253
+lon: -108.55341
+slope_mean: 37.39246
 time_step: 1 hour
 train_cfg_file:
 - ../trained_neuralhydrology_models/nh_AORC_hourly_25yr_1210_112435_7/config.yml

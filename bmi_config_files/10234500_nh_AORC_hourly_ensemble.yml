@@ -1,11 +1,11 @@
-area_sqkm: 1897.33
-basin_id: 5057200
-basin_name: BALDHILL CREEK NR DAZEY, ND
-elev_mean: 447.5
+area_sqkm: 236.42
+basin_id: 10234500
+basin_name: BEAVER RIVER NEAR BEAVER, UT
+elev_mean: 2498.74
 initial_state: zero
-lat: 47.22916
-lon: -98.12482
-slope_mean: 2.33897
+lat: 38.28053
+lon: -112.56827
+slope_mean: 95.20992
 time_step: 1 hour
 train_cfg_file:
 - ../trained_neuralhydrology_models/nh_AORC_hourly_25yr_1210_112435_7/config.yml

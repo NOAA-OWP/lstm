@@ -1,11 +1,11 @@
-area_sqkm: 1897.33
-basin_id: 5057200
-basin_name: BALDHILL CREEK NR DAZEY, ND
-elev_mean: 447.5
+area_sqkm: 224.35
+basin_id: 4015330
+basin_name: KNIFE RIVER NEAR TWO HARBORS, MN
+elev_mean: 337.69
 initial_state: zero
-lat: 47.22916
-lon: -98.12482
-slope_mean: 2.33897
+lat: 46.94688
+lon: -91.7924
+slope_mean: 19.16862
 time_step: 1 hour
 train_cfg_file:
 - ../trained_neuralhydrology_models/nh_AORC_hourly_25yr_1210_112435_7/config.yml

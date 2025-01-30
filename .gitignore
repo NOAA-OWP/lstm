@@ -83,3 +83,5 @@ dist/
 # Pickle stuff #
 ################
 model1_state.pkl
+
+build/
