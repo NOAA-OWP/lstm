@@ -1,11 +1,11 @@
-area_sqkm: 1897.33
-basin_id: 5057200
-basin_name: BALDHILL CREEK NR DAZEY, ND
-elev_mean: 447.5
+area_sqkm: 2252.7
+basin_id: 1013500
+basin_name: Fish River near Fort Kent, Maine
+elev_mean: 250.31
 initial_state: zero
-lat: 47.22916
-lon: -98.12482
-slope_mean: 2.33897
+lat: 47.23739
+lon: -68.58264
+slope_mean: 21.64152
 time_step: 1 hour
 train_cfg_file:
 - ../trained_neuralhydrology_models/nh_AORC_hourly_25yr_1210_112435_7/config.yml

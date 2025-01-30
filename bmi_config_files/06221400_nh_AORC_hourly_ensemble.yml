@@ -1,11 +1,11 @@
-area_sqkm: 1897.33
-basin_id: 5057200
-basin_name: BALDHILL CREEK NR DAZEY, ND
-elev_mean: 447.5
+area_sqkm: 227.88
+basin_id: 6221400
+basin_name: DINWOODY CREEK ABOVE LAKES, NEAR BURRIS, WYO.
+elev_mean: 3336.8
 initial_state: zero
-lat: 47.22916
-lon: -98.12482
-slope_mean: 2.33897
+lat: 43.34551
+lon: -109.41014
+slope_mean: 127.16435
 time_step: 1 hour
 train_cfg_file:
 - ../trained_neuralhydrology_models/nh_AORC_hourly_25yr_1210_112435_7/config.yml

@@ -1,11 +1,11 @@
-area_sqkm: 1897.33
-basin_id: 5057200
-basin_name: BALDHILL CREEK NR DAZEY, ND
-elev_mean: 447.5
+area_sqkm: 72.84
+basin_id: 9035900
+basin_name: SOUTH FORK OF WILLIAMS FORK NEAR LEAL, CO.
+elev_mean: 3240.75
 initial_state: zero
-lat: 47.22916
-lon: -98.12482
-slope_mean: 2.33897
+lat: 39.79582
+lon: -106.03057
+slope_mean: 123.91195
 time_step: 1 hour
 train_cfg_file:
 - ../trained_neuralhydrology_models/nh_AORC_hourly_25yr_1210_112435_7/config.yml
