@@ -21,10 +21,6 @@ import os
 ### import sys
 
 #------------------------------------------------------------------------
-USE_PATH = True  # (SDP)
-if not(USE_PATH):
-    import os
-
 class bmi_LSTM(Bmi):
 
     def __init__(self):
@@ -255,15 +251,10 @@ class bmi_LSTM(Bmi):
             default_state_dict = self.lstm[i_ens].state_dict()
 
             # Trained model weights from Neuralhydrology.
-            if (USE_PATH):  # (SDP)
+            if self.verbose > 0:
+                print(self.cfg_train[i_ens]['run_dir'])
 
-                if self.verbose > 0:
-                    print(self.cfg_train[i_ens]['run_dir'])
-
-                trained_model_file = self.cfg_train[i_ens]['run_dir'] / 'model_epoch{}.pt'.format(str(self.cfg_train[i_ens]['epochs']).zfill(3))
-            else:
-                str1 = self.cfg_train[i_ens]['run_dir'] + '/' + 'model_epoch{}.pt'
-                trained_model_file = str1.format(str(self.cfg_train[i_ens]['epochs']).zfill(3))
+            trained_model_file = self.cfg_train[i_ens]['run_dir'] / 'model_epoch{}.pt'.format(str(self.cfg_train[i_ens]['epochs']).zfill(3))
 
             trained_state_dict = torch.load(trained_model_file, map_location=torch.device('cpu'))
 
@@ -369,14 +360,9 @@ class bmi_LSTM(Bmi):
         for i_ens in range(self.N_ENS):
 
             if self.cfg_bmi['train_cfg_file'][i_ens] is not None:
-                if (USE_PATH):  # (SDP)
-                    with self.cfg_bmi['train_cfg_file'][i_ens].open('r') as fp:
-                        cfg = yaml.safe_load(fp)
-                    self.cfg_train[i_ens] = self._parse_config(cfg)
-                else:
-                    with open(self.cfg_bmi['train_cfg_file'][i_ens],'r') as fp:  # (SDP)
-                        cfg = yaml.safe_load(fp)
-                    self.cfg_train[i_ens] = self._parse_config(cfg)
+                with self.cfg_bmi['train_cfg_file'][i_ens].open('r') as fp:
+                    cfg = yaml.safe_load(fp)
+                self.cfg_train[i_ens] = self._parse_config(cfg)
 
             # Including a list of the model input names.
             if self.verbose > 0:
@@ -928,9 +914,9 @@ class bmi_LSTM(Bmi):
             if key == 'train_cfg_file':
                 if val is not None and val != "None":
                     if isinstance(val, list):
-                        cfg[key] = [Path(element) if USE_PATH else element for element in val]
+                        cfg[key] = [Path(element) for element in val]
                     else:
-                        cfg[key] = [Path(val)] if USE_PATH else [val]
+                        cfg[key] = [Path(val)]
                 else:
                     cfg[key] = []
 
@@ -940,16 +926,10 @@ class bmi_LSTM(Bmi):
                     if isinstance(val, list):
                         temp_list = []
                         for element in val:
-                            if USE_PATH:
-                                temp_list.append(Path(element))
-                            else:
-                                temp_list.append(element)  # (SDP)
+                            temp_list.append(Path(element))
                         cfg[key] = temp_list
                     else:
-                        if USE_PATH:
-                            cfg[key] = Path(val)
-                        else:
-                            cfg[key] = val  # (SDP)
+                        cfg[key] = Path(val)
                 else:
                     cfg[key] = None
 
