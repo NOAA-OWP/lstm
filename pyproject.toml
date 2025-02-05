@@ -27,6 +27,9 @@ dependencies = [
 ]
 # TODO: aaraney: circle back to package data
 
+[project.optional-dependencies]
+develop = ["pytest", "netcdf4"]
+
 [tool.setuptools.dynamic]
 version = { attr = "lstm._version.__version__" }
 
