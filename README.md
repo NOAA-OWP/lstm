@@ -36,15 +36,19 @@ To run a sample with AORC, you can clone this repository that has data from seve
 ## Configurations
 The LSTM model requires a configuration file for specification of forcings, weights, scalers, run options (like warmup period), runtime period, static basin parameters and model time step. This configuration file needs to be generated for any specific application of the LSTM model.
 
-This LSTM model will run on any basin with the required inputs; however, it was trained on 500+ catchments from the [CAMELS dataset](https://ral.ucar.edu/solutions/products/camels) across the contiguous United States (CONUS) and is best suited to this CONUS region, for now. The place to set up the run for a specific configuration for a specific basin is in the BMI (`*.yml`) [configuration file](./bmi_config_files/). Ideally, the LSTM trained with all forcings and all static attributes will be used, but we've included a few example LSTMs that have limited static attributes and forcings, in the event that the total set of forcings and attributes are not available. For explanations of how the LSTM might perform with limited inputs and on ungauged basins, see [Frederik Kratzert et al., Toward Improved Predictions in Ungauged Basins: Exploiting the Power of Machine Learning, Water Resources Research](https://doi.org/10.1029/2019WR026065). To set up a specific configuration for a specific basin, change the appropriate [BMI configuration file](./bmi_config_files/). 
+This LSTM model will run on any basin with the required inputs; however, it was trained on 500+ catchments from the [CAMELS dataset](https://ral.ucar.edu/solutions/products/camels) across the contiguous United States (CONUS) and is best suited to this CONUS region, for now. The place to set up the run for a specific configuration for a specific basin is in the BMI (`*.yml`) [configuration file](./bmi_config_files/). Ideally, the LSTM trained with all forcings and all static attributes will be used, but we've included a few example LSTMs that have limited static attributes and/or forcings, in the event that the total set of forcings and attributes are not available. For explanations of how the LSTM might perform with limited inputs and on ungauged basins, see [Frederik Kratzert et al., Toward Improved Predictions in Ungauged Basins: Exploiting the Power of Machine Learning, Water Resources Research](https://doi.org/10.1029/2019WR026065). To set up a specific configuration for a specific basin, change the appropriate [BMI configuration file](./bmi_config_files/). 
 
 ## Trained LSTM Model
-Included in this directory are three samples of trained LSTM models:
-* `hourly_all_attributes_and_forcings`: This is the model that should be used. It was trained to ingest 8 atmospheric forcings and 26 static attributes, that were chosen from the [CAMELS dataset](https://ral.ucar.edu/solutions/products/camels). If you do not have access to all these static attributes, one of the models below are available with limited static attributes, but in general would be best to use all data possible.  
-* `hourly_slope_mean_precip_temp`: This model was trained to ingest only two atmospheric forcings (total precipitation and temperature) and two static attributes (basin mean slope and elevation).  
-* `hourly_all_forcings_lat_lon_elev`: This model was trained to ingest eight atmospheric forcings (total precipitation, longwave radiation, shortwave radiation, pressure, specific humidity, temperature, wind in the X and Y directions) and three static attributes (basin mean elevation, latitude and longitude).  
+Included in the directory `./trained_neuralhydrology_models` are several **samples** of trained LSTM models. Please note that these models are for demonstration only, and not intended for operational use. The following five models were trained with all AORC forcing variables:
+* `nh_AORC_hourly_25yr_1210_112435_7`
+* `nh_AORC_hourly_25yr_1210_112435_8`
+* `nh_AORC_hourly_25yr_1210_112435_9`
+* `nh_AORC_hourly_25yr_seq999_seed101_0701_143442`
+* `nh_AORC_hourly_25yr_seq999_seed103_2701_171540`  
+This model was trained with only precipitation and temperature as forcing variables.
+* `nh_AORC_hourly_slope_elev_precip_temp_seq999_seed101_2801_191806`
 
-These three models are trained with different inputs, but they all will run with the same [BMI](./lstm/bmi_lstm.py) and [LSTM](./lstm/nextgen_cuda_lstm.py) model.
+Although these models are trained with different inputs and configurations, but they all will run with the same [BMI](./lstm/bmi_lstm.py) and [LSTM](./lstm/nextgen_cuda_lstm.py) model. An ensemble of trained models can also be used, simply by including each desired trained LSTM model in the BMI configuration file, demonstrated here:  [BMI configuration file for an ensemble run](./bmi_config_files/01013500_nh_AORC_hourly_ensemble.yml).
 
 ## Dependencies
 Running this model requires python and the libraries listed in the [environment file](./environment.yml). This example uses [Anaconda](https://www.anaconda.com), but it isn’t a requirement. You can opt to set up a python environment without it by using the libraries specified in the `environment.yml` file. If you have Anaconda, you can easily create an environment (`bmi_lstm`) with the required libraries using:  `conda env create -f environment.yml`. 
@@ -66,7 +70,7 @@ Running these examples of trained LSTM-based hydrological models require these g
 3.  Create a configuration file with the key-value pairs that can be used by the BMI
 4.  Run a script with the Python commands for the BMI model control functions
 
-The [Jupyter Notebook](./notebooks/run_lstm_with_bmi.ipynb) and a Python script [`run_lstm_bmi.py`](./lstm/run_lstm_bmi.py) have an example of running the LSTM with BMI model control functions, which can be summarized as follows:    
+The [Jupyter Notebook](./notebooks/run_lstm_with_bmi_aorc.ipynb) and a Python script [`run_lstm_bmi_AORC.py`](./lstm/run_lstm_bmi_AORC.py) have an example of running the LSTM with BMI model control functions, which can be summarized as follows:    
 
 1. `conda activate bmi_lstm`
 2. Import required libraries (e.g., `import torch`)
