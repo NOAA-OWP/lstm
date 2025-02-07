@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import contextlib
+import os
 from pathlib import Path
 
 import netCDF4 as nc
@@ -8,6 +10,7 @@ import numpy as np
 from lstm import bmi_lstm
 
 REPO_ROOT = Path(__file__).parent.parent
+TEST_DIR = Path(__file__).parent
 
 
 def test_single_lstm_member_nldas_configuration():
@@ -67,27 +70,38 @@ def test_single_lstm_member_nldas_configuration():
         dtype="float64",
     )
 
-    # Create an instance of the LSTM model with BMI
-    model_instance = bmi_lstm.bmi_LSTM()
+    with pushd(TEST_DIR):
+        # Create an instance of the LSTM model with BMI
+        model_instance = bmi_lstm.bmi_LSTM()
 
-    # Initialize the model with a configuration file
-    model_instance.initialize(str(bmi_cfg_file))
+        # Initialize the model with a configuration file
+        model_instance.initialize(str(bmi_cfg_file))
 
-    forcing = nc.Dataset(forcing_file, "r")
-    nts = len(expected_output_mm_hr)
-    runoff_depth_m_hr = np.zeros(nts)
-    for ts in range(nts):
-        for forcing_name, bmi_forcing_name in forcing_variable_name_mapping.items():
-            model_instance.set_value(
-                bmi_forcing_name, forcing.variables[forcing_name][basin_var_idx, ts]
+        forcing = nc.Dataset(forcing_file, "r")
+        nts = len(expected_output_mm_hr)
+        runoff_depth_m_hr = np.zeros(nts)
+        for ts in range(nts):
+            for forcing_name, bmi_forcing_name in forcing_variable_name_mapping.items():
+                model_instance.set_value(
+                    bmi_forcing_name, forcing.variables[forcing_name][basin_var_idx, ts]
+                )
+            # Update the model
+            model_instance.update()
+
+            # Retrieve and scale the runoff output
+            model_instance.get_value(
+                "land_surface_water__runoff_depth", runoff_depth_m_hr[ts : ts + 1]
             )
-        # Update the model
-        model_instance.update()
 
-        # Retrieve and scale the runoff output
-        model_instance.get_value(
-            "land_surface_water__runoff_depth", runoff_depth_m_hr[ts : ts + 1]
-        )
+        runoff_depth_mm_hr = runoff_depth_m_hr * 1000  # m/hr -> mm/hr
+        np.testing.assert_allclose(runoff_depth_mm_hr, expected_output_mm_hr)
 
-    runoff_depth_mm_hr = runoff_depth_m_hr * 1000  # m/hr -> mm/hr
-    np.testing.assert_allclose(runoff_depth_mm_hr, expected_output_mm_hr)
+
+@contextlib.contextmanager
+def pushd(target: Path):
+    saved = os.getcwd()
+    os.chdir(target)
+    try:
+        yield saved
+    finally:
+        os.chdir(saved)
