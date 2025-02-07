@@ -1,0 +1,41 @@
+name: unit tests
+
+on:
+  push:
+    paths:
+    - '**.py'
+    - '**.yml'
+    - '**.yaml'
+  pull_request:
+    paths:
+    - '**.py'
+    - '**.yml'
+    - '**.yaml'
+  # enable manual run
+  workflow_dispatch:
+
+jobs:
+  unit_tests:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.10", "3.11", "3.12"]
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    - name: Install dependencies
+      run: |
+        pip install -U pip # upgrade pip
+        pip install '.[develop]'
+    - name: Echo dependency versions
+      run: |
+        pip freeze
+    - name: Run unit tests 
+      run: |
+        pytest -s tests/
