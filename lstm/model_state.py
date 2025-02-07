@@ -6,6 +6,11 @@ from dataclasses import dataclass
 
 import numpy.typing as npt
 
+if sys.version_info < (3, 10):
+    import typing_extensions as typing
+else:
+    import typing
+
 # `slots` feature added to of `dataclass` in 3.10
 # see: https://docs.python.org/3.12/library/dataclasses.html#dataclasses.dataclass
 if sys.version_info < (3, 10):
@@ -83,26 +88,75 @@ class State:
         return len(self._name_mapping)
 
 
-# TODO: aaraney / reviewer: think of a better name
-class StateValues:
+class StateFacade:
     """
-    Treat multiple `State` objects `value` method as if they were a single `StateValues` object.
+    Treat multiple `State` objects as if they were a single `State` object.
     The first value successfully retrieved will be returned.
-
-    Conforms to `Valuer` interface.
     """
 
     def __init__(self, *states: State):
         self.states = states
 
+    def unit(self, name: str) -> str:
+        """Given a variable name, return its unit"""
+        return state_proxy(self.states, State.unit, name=name)
+
     def value(self, name: str) -> npt.NDArray:
-        assert len(self.states) > 0, (
-            "No State objects present. See initialization of `StateValues` instance."
+        """Given a variable name, return a value reference"""
+        return state_proxy(self.states, State.value, name=name)
+
+    def value_at_indices(
+        self, name: str, dest: npt.NDArray, indices: npt.NDArray
+    ) -> npt.NDArray:
+        return state_proxy(
+            self.states, State.value_at_indices, name=name, dest=dest, indices=indices
         )
-        errs = []
+
+    def set_value(self, name: str, value: npt.NDArray):
+        return state_proxy(self.states, State.set_value, name=name, value=value)
+
+    def set_value_at_indices(self, name: str, inds: npt.NDArray, src: npt.NDArray):
+        return state_proxy(
+            self.states, State.set_value_at_indices, name=name, inds=inds, src=src
+        )
+
+    def names(self) -> typing.Iterable[str]:
         for state in self.states:
-            try:
-                return state.value(name)
-            except BaseException as e:
-                errs.append(e)
+            yield from state.names()
+
+    def vars(self) -> typing.Iterable[Var]:
+        for state in self.states:
+            yield from state.vars()
+
+    def __contains__(self, name: str) -> bool:
+        """Return if the variable name is present in the collection."""
+        return any(name in state for state in self.states)
+
+    def __iter__(self) -> typing.Iterator[Var]:
+        return iter(self.vars())
+
+    def __len__(self) -> int:
+        return sum(len(state) for state in self.states)
+
+
+P = typing.ParamSpec("P")
+R = typing.TypeVar("R")
+
+
+def state_proxy(
+    states: typing.Iterable[State],
+    fn: typing.Callable[typing.Concatenate[State, P], R],
+    *args: P.args,
+    **kwargs: P.kwargs,
+) -> R:
+    errs = []
+    for state in states:
+        try:
+            return fn(state, *args, **kwargs)
+        except BaseException as e:
+            errs.append(e)
+    if errs:
         raise KeyError(errs)
+    raise RuntimeError(
+        "No State objects present. See initialization of `StateValues` instance."
+    )
