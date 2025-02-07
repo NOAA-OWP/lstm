@@ -68,8 +68,8 @@ class State:
         """Return if the variable name is present in the collection."""
         return name in self._name_mapping
 
-    def __iter__(self) -> typing.Iterable[Var]:
-        return self.vars()
+    def __iter__(self) -> typing.Iterator[Var]:
+        return iter(self.vars())
 
     def __len__(self) -> int:
         return len(self._name_mapping)
