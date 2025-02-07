@@ -8,7 +8,7 @@ description = "Hydrologic model based on Long Short-Term Memory algorithm"
 dynamic = ["version"]
 authors = [
     { name = "Jonathan Frame", email = "jmframe@ua.edu" },
-    { name = "Austin Raney", email = "austin.raney@noaa.gov" },
+    { name = "Austin Raney", email = "araney@lynker.com" },
     { name = "Scott Peckham", email = "scott.peckham@colorado.edu" },
     { name = "Jessica Garrett", email = "jessica.garrett@noaa.gov" },
     { name = "Nels Frazier", email = "nels.frazier@noaa.gov" },
