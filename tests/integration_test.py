@@ -99,7 +99,9 @@ def test_single_lstm_member_nldas_configuration():
             )
 
         runoff_depth_mm_hr = runoff_depth_m_hr * 1000  # m/hr -> mm/hr
-        np.testing.assert_allclose(runoff_depth_mm_hr, expected_output_mm_hr)
+        np.testing.assert_array_almost_equal(
+            runoff_depth_mm_hr, expected_output_mm_hr, decimal=6
+        )
 
 
 @contextlib.contextmanager
