@@ -1,3 +1,8 @@
+#
+# Copyright (C) 2025 Austin Raney, Lynker
+#
+# Author: Austin Raney <araney@lynker.com>
+#
 from __future__ import annotations
 
 import sys
