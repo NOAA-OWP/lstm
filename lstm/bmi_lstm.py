@@ -14,7 +14,7 @@ import yaml
 from . import nextgen_cuda_lstm
 from .base import BmiBase
 from .logger import configure_logging, logger
-from .model_state import State, StateValues, Var
+from .model_state import State, StateFacade, Var
 
 # --------------   Dynamic Attributes -----------------------------
 _dynamic_input_vars = [
@@ -387,7 +387,7 @@ class bmi_LSTM(BmiBase):
         #
         # each ensemble member will query the `state` object for its required inputs.
         # this could ensemble members with a different number of required features in the future.
-        state = StateValues(self._dynamic_inputs, self._static_inputs)
+        state = StateFacade(self._dynamic_inputs, self._static_inputs)
 
         outputs: dict[str, list[float]] = collections.defaultdict(list)
         for member in self.ensemble_members:
@@ -441,7 +441,7 @@ class bmi_LSTM(BmiBase):
 
     def get_var_grid(self, name: str) -> int:
         # Note: all vars have grid 0 but check if its in names list first
-        if name in self._dynamic_inputs or name in self._outputs:
+        if name in StateFacade(self._outputs, self._dynamic_inputs):
             return 0
         raise RuntimeError(f"unknown name: {name!s}")
 
@@ -449,11 +449,7 @@ class bmi_LSTM(BmiBase):
         return self.get_value_ptr(name).dtype.name
 
     def get_var_units(self, name: str) -> str:
-        if name in self._dynamic_inputs:
-            return self._dynamic_inputs.unit(name)
-        elif name in self._outputs:
-            return self._outputs.unit(name)
-        raise RuntimeError(f"unknown name: {name!s}")
+        return StateFacade(self._outputs, self._dynamic_inputs).unit(name)
 
     def get_var_itemsize(self, name: str) -> int:
         return self.get_value_ptr(name).itemsize
@@ -462,8 +458,7 @@ class bmi_LSTM(BmiBase):
         return self.get_var_itemsize(name) * len(self.get_value_ptr(name))
 
     def get_var_location(self, name: str) -> str:
-        # Note: all vars have location node but check if its in names list first
-        if name in self._dynamic_inputs or name in self._outputs:
+        if name in StateFacade(self._outputs, self._dynamic_inputs):
             return "node"
         raise RuntimeError(f"unknown name: {name!s}")
 
@@ -487,24 +482,24 @@ class bmi_LSTM(BmiBase):
         return dest
 
     def get_value_ptr(self, name: str) -> np.ndarray:
-        # NOTE: aaraney: I think we just want to allow getting outputs?
-        return self._outputs.value(name)
+        return StateFacade(self._outputs, self._dynamic_inputs).value(name)
 
     def get_value_at_indices(
         self, name: str, dest: np.ndarray, inds: np.ndarray
     ) -> np.ndarray:
-        # NOTE: aaraney: I think we just want to allow getting outputs?
-        return self._outputs.value_at_indices(name, dest, inds)
+        return StateFacade(self._outputs, self._dynamic_inputs).value_at_indices(
+            name, dest, inds
+        )
 
     def set_value(self, name: str, src: np.ndarray) -> None:
-        # NOTE: aaraney: I think we just want to allow setting inputs?
-        self._dynamic_inputs.set_value(name, src)
+        return StateFacade(self._outputs, self._dynamic_inputs).set_value(name, src)
 
     def set_value_at_indices(
         self, name: str, inds: np.ndarray, src: np.ndarray
     ) -> None:
-        # NOTE: aaraney: I think we just want to allow setting inputs?
-        self._dynamic_inputs.set_value_at_indices(name, inds, src)
+        return StateFacade(self._outputs, self._dynamic_inputs).set_value_at_indices(
+            name, inds, src
+        )
 
     # Grid information
     def get_grid_rank(self, grid: int) -> int:
