@@ -319,9 +319,9 @@ def scale_outputs(
         surface_runoff_mm = output[0, 0, 0].numpy() * output_std + output_mean
     elif cfg["target_variables"][0] in ["QObs(mm/d)"]:
         # daily to hourly
-        surface_runoff_mm = (
-            output[0, 0, 0].numpy() * output_std + output_mean
-        ) * (1 / 24)
+        surface_runoff_mm = (output[0, 0, 0].numpy() * output_std + output_mean) * (
+            1 / 24
+        )
     else:
         raise RuntimeError("unreachable")
 
