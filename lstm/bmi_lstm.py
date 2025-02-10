@@ -285,11 +285,11 @@ def scale_outputs(
     logger.debug(f"model output: {output[0, 0, 0].numpy().tolist()}")
 
     if cfg["target_variables"][0] in ["qobs_mm_per_hour", "QObs(mm/hr)", "QObs(mm/h)"]:
-        surface_runoff_mm = output[0, 0, 0].numpy().tolist() * output_std + output_mean
+        surface_runoff_mm = output[0, 0, 0].numpy() * output_std + output_mean
     elif cfg["target_variables"][0] in ["QObs(mm/d)"]:
         # daily to hourly
         surface_runoff_mm = (
-            output[0, 0, 0].numpy().tolist() * output_std + output_mean
+            output[0, 0, 0].numpy() * output_std + output_mean
         ) * (1 / 24)
     else:
         raise RuntimeError("unreachable")
