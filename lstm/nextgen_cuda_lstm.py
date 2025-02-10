@@ -1,3 +1,7 @@
+#
+# Author:
+#   Jonathan Frame <jmframe@ua.edu>
+#
 # LSTM here is based on PyTorch
 from torch import nn
 
