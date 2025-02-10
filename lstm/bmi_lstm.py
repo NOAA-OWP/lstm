@@ -614,7 +614,8 @@ def coerce_config(cfg: dict[str, typing.Any]):
 
 def first_containing(name: str, *states: State) -> State:
     """
-    Return the first `State` object containing `name`. Otherwise, raise `KeyError`
+    Return the first `State` object containing `name` in `states`.
+    Otherwise, raise `KeyError`.
     """
     for state in states:
         if name in state:
