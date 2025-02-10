@@ -66,16 +66,17 @@ Mapping from 'internal' names to 'external' names (names exposed via bmi).
 Internal names are meaningful to trained lstm models.
 Its healthy to think of internal names as aliases to external names.
 """
+
 EXTERNAL_NAME_CROSSWALK = {v: k for k, v in INTERNAL_NAME_CROSSWALK.items()}
 """Mapping from 'external' names to 'internal' names."""
 
 
-def crx_to_external(name: str):
+def crosswalk_to_external(name: str):
     """Return the external name (the name exposed via BMI) for a given internal name."""
     return INTERNAL_NAME_CROSSWALK[name]
 
 
-def crx_to_interal(name: str):
+def crosswalk_to_interal(name: str):
     """Return the internal name for a given external name (the name exposed via BMI)."""
     return EXTERNAL_NAME_CROSSWALK[name]
 
@@ -240,7 +241,7 @@ def gather_inputs(
 
     input_list = []
     for lstm_name in internal_input_names:
-        bmi_name = crx_to_external(lstm_name)
+        bmi_name = crosswalk_to_external(lstm_name)
         value = state.value(bmi_name)
         assert value.size == 1, "`value` should a single scalar in a 1d array"
         input_list.append(value[0])
@@ -331,7 +332,7 @@ def build_state(vars: typing.Iterable[tuple[str, str]]) -> State:
 
 def load_static_attributes(cfg: dict[str, typing.Any], state: State):
     for external_name in state.names():
-        internal_name = crx_to_interal(external_name)
+        internal_name = crosswalk_to_interal(external_name)
         value = cfg[internal_name]
         state.set_value(external_name, bmi_array([value]))
 
