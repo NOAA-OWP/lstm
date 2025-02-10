@@ -62,6 +62,7 @@ class State:
         self, name: str, dest: npt.NDArray, indices: npt.NDArray
     ) -> npt.NDArray:
         # This must copy into dest!!!
+        assert dest.shape[0] >= indices.shape[0], "dest smaller than indices"
         src = self.value(name)
         for i in range(indices.shape[0]):
             value_index = indices[i]
@@ -72,6 +73,7 @@ class State:
         self._name_mapping[name].value[:] = value
 
     def set_value_at_indices(self, name: str, inds: npt.NDArray, src: npt.NDArray):
+        assert src.shape[0] >= inds.shape[0], "inds larger than src"
         arr = self.value(name)
         for i in range(inds.shape[0]):
             arr[inds[i]] = src[i]
