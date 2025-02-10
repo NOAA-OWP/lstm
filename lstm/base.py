@@ -23,6 +23,9 @@ _P = typing.ParamSpec("_P")
 def raise_not_implemented(
     fn: typing.Callable[_P, _R],
 ) -> typing.Callable[_P, typing.NoReturn]:
+    """
+    Decorate a method s.t. it raises NotImplementedError w/ fn name when called
+    """
     name = fn.__name__
 
     @functools.wraps(fn)
