@@ -163,7 +163,7 @@ def state_proxy(
         except BaseException as e:
             errs.append(e)
     if errs:
-        raise KeyError(errs)
+        raise RuntimeError(errs)
     raise RuntimeError(
         "No State objects present. See initialization of `StateValues` instance."
     )
