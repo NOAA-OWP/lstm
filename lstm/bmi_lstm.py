@@ -5,7 +5,7 @@
 #   Austin Raney <araney@lynker.com>
 #   Jonathan Frame <jmframe@ua.edu>
 #
-#  In hopes to avoid confusion, there are four main abstractions of note:
+#  In hopes to avoid confusion, there are five main abstractions of note:
 #
 #  bmi_LSTM:
 #       Class that implements the BMI interface and interoperates with the
@@ -17,9 +17,10 @@
 #
 # State:
 #       Represents a collection of variables (`Var`s), and provides methods to
-#       access and mutate individual `Vars`. This is not to be confused with an
-#       LSTM model's 'state' or 'state space'. This is simply a container type
-#       for passing data to and from the framework. An `EnsembleMember`, which
+#       access and mutate individual `Vars`. Not to be confused with an LSTM
+#       model's 'hidden states' or 'cell states', or the dynamic modeling
+#       typical taxonomy of 'state-space'. This is simply a container type for
+#       passing data to and from the framework. An `EnsembleMember`, which
 #       contains an LSTM model, queries (see `EnsembleMember.update()`) a
 #       `State` container to receive its input (e.g. precipitation).
 #
@@ -35,6 +36,16 @@
 #       states (tensors) and (2) run an LSTM model by querying a `State`
 #       container (see: return its output. `EnsembleMember.update()`) for
 #       input.
+#
+# Nextgen_CudaLSTM:
+#       Represents a PyTorch-based LSTM model used to make predictions. This
+#       class is responsible for (1) defining the LSTM architecture, (2)
+#       managing hidden and cell states, and (3) performing forward inference
+#       (i.e. takes input data, processes it through the LSTM, and returns
+#       predicted outputs along with updated hidden and cell states) based on
+#       the information collected in the BMI. An `Nextgen_CudaLSTM` contains a
+#       single instance of an LSTM model that performs stepwise predictions
+#       without handling model orchestration or input-output management.
 #
 from __future__ import annotations
 
