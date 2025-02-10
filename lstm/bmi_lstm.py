@@ -106,7 +106,8 @@ class EnsembleMember:
         self.lstm = initialize_lstm(cfg)
 
         # TODO: aaraney: how to handle input mapping conceptually?
-        # NOTE: this is order or variables in input tensor
+        # NOTE: this is the expected order of variables in the model input
+        # tensor, which is required to match the training order when used
         self.input_names = cfg["dynamic_inputs"] + cfg["static_attributes"]
 
         # WARNING: This implementation of the LSTM can only handle a batch size of 1
