@@ -487,10 +487,12 @@ class bmi_LSTM(BmiBase):
         return self._timestep_size_s
 
     def get_value(self, name: str, dest: np.ndarray) -> np.ndarray:
+        """_Copies_ a variable's np.NDArray into `dest` and returns `dest`."""
         dest[:] = self.get_value_ptr(name)
         return dest
 
     def get_value_ptr(self, name: str) -> np.ndarray:
+        """Returns a _reference_ to a variable's np.NDArray."""
         return first_containing(name, self._outputs, self._dynamic_inputs).value(name)
 
     def get_value_at_indices(
