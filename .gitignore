@@ -80,8 +80,4 @@ bower_components/
 src/vendor/
 dist/
 
-# Pickle stuff #
-################
-model1_state.pkl
-
 build/
