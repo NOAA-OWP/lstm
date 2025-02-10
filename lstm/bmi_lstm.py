@@ -448,15 +448,15 @@ class bmi_LSTM(BmiBase):
 
     def get_var_grid(self, name: str) -> int:
         # Note: all vars have grid 0 but check if its in names list first
-        if name in StateFacade(self._outputs, self._dynamic_inputs):
-            return 0
-        raise RuntimeError(f"unknown name: {name!s}")
+        # raises KeyError on failure
+        first_containing(name, self._outputs, self._dynamic_inputs)
+        return 0
 
     def get_var_type(self, name: str) -> str:
         return self.get_value_ptr(name).dtype.name
 
     def get_var_units(self, name: str) -> str:
-        return StateFacade(self._outputs, self._dynamic_inputs).unit(name)
+        return first_containing(name, self._outputs, self._dynamic_inputs).unit(name)
 
     def get_var_itemsize(self, name: str) -> int:
         return self.get_value_ptr(name).itemsize
@@ -465,9 +465,9 @@ class bmi_LSTM(BmiBase):
         return self.get_var_itemsize(name) * len(self.get_value_ptr(name))
 
     def get_var_location(self, name: str) -> str:
-        if name in StateFacade(self._outputs, self._dynamic_inputs):
-            return "node"
-        raise RuntimeError(f"unknown name: {name!s}")
+        # raises KeyError on failure
+        first_containing(name, self._outputs, self._dynamic_inputs)
+        return "node"
 
     def get_current_time(self) -> float:
         return self._timestep * self._timestep_size_s
@@ -489,24 +489,26 @@ class bmi_LSTM(BmiBase):
         return dest
 
     def get_value_ptr(self, name: str) -> np.ndarray:
-        return StateFacade(self._outputs, self._dynamic_inputs).value(name)
+        return first_containing(name, self._outputs, self._dynamic_inputs).value(name)
 
     def get_value_at_indices(
         self, name: str, dest: np.ndarray, inds: np.ndarray
     ) -> np.ndarray:
-        return StateFacade(self._outputs, self._dynamic_inputs).value_at_indices(
-            name, dest, inds
-        )
+        return first_containing(
+            name, self._outputs, self._dynamic_inputs
+        ).value_at_indices(name, dest, inds)
 
     def set_value(self, name: str, src: np.ndarray) -> None:
-        return StateFacade(self._outputs, self._dynamic_inputs).set_value(name, src)
+        return first_containing(name, self._outputs, self._dynamic_inputs).set_value(
+            name, src
+        )
 
     def set_value_at_indices(
         self, name: str, inds: np.ndarray, src: np.ndarray
     ) -> None:
-        return StateFacade(self._outputs, self._dynamic_inputs).set_value_at_indices(
-            name, inds, src
-        )
+        return first_containing(
+            name, self._outputs, self._dynamic_inputs
+        ).set_value_at_indices(name, inds, src)
 
     # Grid information
     def get_grid_rank(self, grid: int) -> int:
@@ -562,3 +564,13 @@ def coerce_config(cfg: dict[str, typing.Any]):
                 cfg[key] = temp_list
             else:
                 cfg[key] = pd.to_datetime(val, format="%d/%m/%Y")
+
+
+def first_containing(name: str, *states: State) -> State:
+    """
+    Return the first `State` object containing `name`. Otherwise, raise `KeyError`
+    """
+    for state in states:
+        if name in state:
+            return state
+    raise KeyError(f"unknown name: {name!s}")
