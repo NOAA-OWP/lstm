@@ -5,6 +5,37 @@
 #   Austin Raney <araney@lynker.com>
 #   Jonathan Frame <jmframe@ua.edu>
 #
+#  In hopes to avoid confusion, there are four main abstractions of note:
+#
+#  bmi_LSTM:
+#       Class that implements the BMI interface and interoperates with the
+#       NextGen Framework. Its roles are to (1) manage variables passed to and
+#       from the framework, (2) orchestrate running one or more LSTM models
+#       (each contained in an `EnsembleMember`), and (3) ensemble output from
+#       aforementioned `EnsembleMember`s model for consumption by NextGen
+#       Framework.
+#
+# State:
+#       Represents a collection of variables (`Var`s), and provides methods to
+#       access and mutate individual `Vars`. This is not to be confused with an
+#       LSTM model's 'state' or 'state space'. This is simply a container type
+#       for passing data to and from the framework. An `EnsembleMember`, which
+#       contains an LSTM model, queries (see `EnsembleMember.update()`) a
+#       `State` container to receive its input (e.g. precipitation).
+#
+# Var:
+#       Representation of a model variable with a name, unit, and value
+#       (`np.NDArray`) that may or may not be exposed via BMI (e.g. static LSTM
+#       attributes). `Var`s exposed over BMI are queried and mutated inplace
+#       using their `value` property (`np.NDArray`).
+#
+# EnsembleMember:
+#       Class that encapsulates a _single_ LSTM model and all necessary
+#       subcomponents. Its roles are to (1) manage an LSTM model's internal
+#       states (tensors) and (2) run an LSTM model by querying a `State`
+#       container (see: return its output. `EnsembleMember.update()`) for
+#       input.
+#
 from __future__ import annotations
 
 import collections
