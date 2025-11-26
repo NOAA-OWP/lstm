@@ -53,6 +53,7 @@ import collections
 import typing
 from dataclasses import dataclass
 from pathlib import Path
+from functools import cache
 
 import numpy as np
 import numpy.typing as npt
@@ -477,37 +478,47 @@ class bmi_LSTM(BmiBase):
 
     def get_component_name(self) -> str:
         return "LSTM"
-
+        
+    @cache
     def get_input_item_count(self) -> int:
         return len(self._dynamic_inputs)
-
+        
+    @cache
     def get_output_item_count(self) -> int:
         return len(self._outputs)
 
+    @cache
     def get_input_var_names(self) -> tuple[str, ...]:  # type: ignore
         return tuple(self._dynamic_inputs.names())
 
+    @cache
     def get_output_var_names(self) -> tuple[str, ...]:  # type: ignore
         return tuple(self._outputs.names())
 
+    @cache
     def get_var_grid(self, name: str) -> int:
         # Note: all vars have grid 0 but check if its in names list first
         # raises KeyError on failure
         first_containing(name, self._outputs, self._dynamic_inputs)
         return 0
-
+        
+    @cache
     def get_var_type(self, name: str) -> str:
         return self.get_value_ptr(name).dtype.name
-
+        
+    @cache
     def get_var_units(self, name: str) -> str:
         return first_containing(name, self._outputs, self._dynamic_inputs).unit(name)
 
+    @cache
     def get_var_itemsize(self, name: str) -> int:
         return self.get_value_ptr(name).itemsize
 
+    @cache
     def get_var_nbytes(self, name: str) -> int:
         return self.get_var_itemsize(name) * len(self.get_value_ptr(name))
 
+    @cache
     def get_var_location(self, name: str) -> str:
         # raises KeyError on failure
         first_containing(name, self._outputs, self._dynamic_inputs)
