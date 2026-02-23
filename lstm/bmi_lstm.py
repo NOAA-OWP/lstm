@@ -82,8 +82,16 @@ _dynamic_input_vars = [
 ]
 # --------------   Static Attributes -----------------------------
 _static_input_vars = [
-    ("basin__mean_of_elevation", "m"),
-    ("basin__mean_of_slope", "m km-1"),
+    ("ari_ix_mean", "1"),
+    ("slp_dg_mean", "1"),
+    ("centroid_y", "1"),
+    ("ims_pc_mean", "1"),
+    ("ele_mt_mean", "1"),
+    ("snd_pct", "1"),
+    ("cly_pct", "1"),
+    ("for_pc_forest_sse", "1"),
+    ("lka_pc_sse", "1"),
+    ("areasqkm", "1"),
 ]
 
 _output_vars = [
@@ -103,8 +111,16 @@ INTERNAL_NAME_CROSSWALK = {
     "UGRD_10maboveground": "land_surface_wind__x_component_of_velocity",
     "VGRD_10maboveground": "land_surface_wind__y_component_of_velocity",
     # static inputs
-    "elev_mean": "basin__mean_of_elevation",
-    "slope_mean": "basin__mean_of_slope",
+    "ari_ix_mean": "ari_ix_mean",
+    "slp_dg_mean": "slp_dg_mean",
+    "centroid_y":"centroid_y",
+    "ims_pc_mean":"ims_pc_mean",
+    "ele_mt_mean":"ele_mt_mean",
+    "snd_pct":"snd_pct",
+    "cly_pct":"cly_pct",
+    "for_pc_forest_sse":"for_pc_forest_sse",
+    "lka_pc_sse": "lka_pc_sse",
+    "areasqkm": "areasqkm",
     # outputs
     "streamflow_cms": "land_surface_water__runoff_volume_flux",
     "streamflow_m": "land_surface_water__runoff_depth",
