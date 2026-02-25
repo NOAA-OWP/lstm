@@ -81,18 +81,6 @@ _dynamic_input_vars = [
     ("land_surface_wind__y_component_of_velocity", "m s-1"),
 ]
 # --------------   Static Attributes -----------------------------
-_static_input_vars = [
-    ("ari_ix_mean", "1"),
-    ("slp_dg_mean", "1"),
-    ("centroid_y", "1"),
-    ("ims_pc_mean", "1"),
-    ("ele_mt_mean", "1"),
-    ("snd_pct", "1"),
-    ("cly_pct", "1"),
-    ("for_pc_forest_sse", "1"),
-    ("lka_pc_sse", "1"),
-    ("areasqkm", "1"),
-]
 
 _output_vars = [
     ("land_surface_water__runoff_volume_flux", "m3 s-1"),
@@ -110,17 +98,6 @@ INTERNAL_NAME_CROSSWALK = {
     "TMP_2maboveground": "land_surface_air__temperature",
     "UGRD_10maboveground": "land_surface_wind__x_component_of_velocity",
     "VGRD_10maboveground": "land_surface_wind__y_component_of_velocity",
-    # static inputs
-    "ari_ix_mean": "ari_ix_mean",
-    "slp_dg_mean": "slp_dg_mean",
-    "centroid_y":"centroid_y",
-    "ims_pc_mean":"ims_pc_mean",
-    "ele_mt_mean":"ele_mt_mean",
-    "snd_pct":"snd_pct",
-    "cly_pct":"cly_pct",
-    "for_pc_forest_sse":"for_pc_forest_sse",
-    "lka_pc_sse": "lka_pc_sse",
-    "areasqkm": "areasqkm",
     # outputs
     "streamflow_cms": "land_surface_water__runoff_volume_flux",
     "streamflow_m": "land_surface_water__runoff_depth",
@@ -395,10 +372,9 @@ def build_state(vars: typing.Iterable[tuple[str, str]]) -> State:
 
 
 def load_static_attributes(cfg: dict[str, typing.Any], state: State):
-    for external_name in state.names():
-        internal_name = crosswalk_to_interal(external_name)
-        value = cfg[internal_name]
-        state.set_value(external_name, bmi_array([value]))
+    for name in state.names():
+        value = cfg[name]
+        state.set_value(name, bmi_array([value]))
 
 
 class bmi_LSTM(BmiBase):
@@ -408,7 +384,7 @@ class bmi_LSTM(BmiBase):
     def __init__(self) -> None:
         # _bmi_ variable state; this is separate from lstm ensemble member state.
         self._dynamic_inputs = build_state(_dynamic_input_vars)
-        self._static_inputs = build_state(_static_input_vars)
+        #self._static_inputs = build_state(_static_input_vars)
         self._outputs = build_state(_output_vars)
 
         # current model timestep.
@@ -425,6 +401,19 @@ class bmi_LSTM(BmiBase):
         # read and setup main configuration file
         with open(config_file, "r") as fp:
             self.cfg_bmi = yaml.load(fp, Loader=SafeLoader)
+
+        _static_input_vars = [
+            (key, '1') 
+            for key in self.cfg_bmi["static_attributes"].keys()
+        ]
+        
+        self._static_inputs = build_state(_static_input_vars)
+
+        global INTERNAL_NAME_CROSSWALK
+        for name, _ in _static_input_vars:
+            if name not in INTERNAL_NAME_CROSSWALK:
+                INTERNAL_NAME_CROSSWALK[name] = name
+        
         coerce_config(self.cfg_bmi)
 
         # TODO: aaraney: config logging levels to python logging levels
@@ -447,7 +436,7 @@ class bmi_LSTM(BmiBase):
             self.ensemble_members.append(member)
 
         # load static variables from config into state
-        load_static_attributes(self.cfg_bmi, self._static_inputs)
+        load_static_attributes(self.cfg_bmi["static_attributes"], self._static_inputs)
 
     def update(self) -> None:
         """update a single timestep."""
