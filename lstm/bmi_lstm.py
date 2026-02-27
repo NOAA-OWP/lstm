@@ -71,55 +71,22 @@ from .model_state import State, StateFacade, Var
 
 # --------------   Dynamic Attributes -----------------------------
 _dynamic_input_vars = [
-    ("land_surface_radiation~incoming~longwave__energy_flux", "W m-2"),
-    ("land_surface_air__pressure", "Pa"),
-    ("atmosphere_air_water~vapor__relative_saturation", "kg kg-1"),
-    ("atmosphere_water__liquid_equivalent_precipitation_rate", "mm h-1"),
-    ("land_surface_radiation~incoming~shortwave__energy_flux", "W m-2"),
-    ("land_surface_air__temperature", "degK"),
-    ("land_surface_wind__x_component_of_velocity", "m s-1"),
-    ("land_surface_wind__y_component_of_velocity", "m s-1"),
+    ("DLWRF_surface", "W m-2"),
+    ("PRES_surface", "Pa"),
+    ("SPFH_2maboveground", "kg kg-1"),
+    ("APCP_surface", "mm h-1"),
+    ("DSWRF_surface", "W m-2"),
+    ("TMP_2maboveground", "degK"),
+    ("UGRD_10maboveground", "m s-1"),
+    ("VGRD_10maboveground", "m s-1"),
 ]
+
 # --------------   Static Attributes -----------------------------
 
 _output_vars = [
     ("land_surface_water__runoff_volume_flux", "m3 s-1"),
     ("land_surface_water__runoff_depth", "m"),
 ]
-
-# --------------    Name Mappings    -----------------------------
-INTERNAL_NAME_CROSSWALK = {
-    # dynamic inputs
-    "DLWRF_surface": "land_surface_radiation~incoming~longwave__energy_flux",
-    "PRES_surface": "land_surface_air__pressure",
-    "SPFH_2maboveground": "atmosphere_air_water~vapor__relative_saturation",
-    "APCP_surface": "atmosphere_water__liquid_equivalent_precipitation_rate",
-    "DSWRF_surface": "land_surface_radiation~incoming~shortwave__energy_flux",
-    "TMP_2maboveground": "land_surface_air__temperature",
-    "UGRD_10maboveground": "land_surface_wind__x_component_of_velocity",
-    "VGRD_10maboveground": "land_surface_wind__y_component_of_velocity",
-    # outputs
-    "streamflow_cms": "land_surface_water__runoff_volume_flux",
-    "streamflow_m": "land_surface_water__runoff_depth",
-}
-"""
-Mapping from 'internal' names to 'external' names (names exposed via bmi).
-Internal names are meaningful to trained lstm models.
-Its healthy to think of internal names as aliases to external names.
-"""
-
-EXTERNAL_NAME_CROSSWALK = {v: k for k, v in INTERNAL_NAME_CROSSWALK.items()}
-"""Mapping from 'external' names to 'internal' names."""
-
-
-def crosswalk_to_external(name: str):
-    """Return the external name (the name exposed via BMI) for a given internal name."""
-    return INTERNAL_NAME_CROSSWALK[name]
-
-
-def crosswalk_to_interal(name: str):
-    """Return the internal name for a given external name (the name exposed via BMI)."""
-    return EXTERNAL_NAME_CROSSWALK[name]
 
 
 # ---------------  Ensemble Member -----------------------------
@@ -169,7 +136,6 @@ class EnsembleMember:
         """
         with torch.no_grad():
             inputs = gather_inputs(state, self.input_names)
-
             scaled = scale_inputs(
                 inputs, self.scalars.input_mean, self.scalars.input_std
             )
@@ -277,18 +243,16 @@ def initialize_lstm(cfg: dict[str, typing.Any]) -> nextgen_cuda_lstm.Nextgen_Cud
 
 
 def gather_inputs(
-    state: Valuer, internal_input_names: typing.Iterable[str]
+    state: Valuer, train_input_names: typing.Iterable[str]
 ) -> npt.NDArray:
     logger.debug("Collecting LSTM inputs ...")
 
     input_list = []
-    for lstm_name in internal_input_names:
-        bmi_name = crosswalk_to_external(lstm_name)
-        value = state.value(bmi_name)
+    for name in train_input_names:
+        value = state.value(name)
         assert value.size == 1, "`value` should a single scalar in a 1d array"
         input_list.append(value[0])
-        logger.debug("  lstm_name=%s", lstm_name)
-        logger.debug("  bmi_name=%s", bmi_name)
+        logger.debug("  var_name=%s", name)
         logger.debug("  type(value)=%s", type(value))
         logger.debug("  value=%s", value)
 
@@ -371,9 +335,9 @@ def build_state(vars: typing.Iterable[tuple[str, str]]) -> State:
     return State(vars=g)
 
 
-def load_static_attributes(cfg: dict[str, typing.Any], state: State):
+def load_static_attributes(cfg_static_attrs: dict[str, typing.Any], state: State):
     for name in state.names():
-        value = cfg[name]
+        value = cfg_static_attrs[name]
         state.set_value(name, bmi_array([value]))
 
 
@@ -384,7 +348,6 @@ class bmi_LSTM(BmiBase):
     def __init__(self) -> None:
         # _bmi_ variable state; this is separate from lstm ensemble member state.
         self._dynamic_inputs = build_state(_dynamic_input_vars)
-        #self._static_inputs = build_state(_static_input_vars)
         self._outputs = build_state(_output_vars)
 
         # current model timestep.
@@ -408,11 +371,6 @@ class bmi_LSTM(BmiBase):
         ]
         
         self._static_inputs = build_state(_static_input_vars)
-
-        global INTERNAL_NAME_CROSSWALK
-        for name, _ in _static_input_vars:
-            if name not in INTERNAL_NAME_CROSSWALK:
-                INTERNAL_NAME_CROSSWALK[name] = name
         
         coerce_config(self.cfg_bmi)
 
@@ -434,6 +392,17 @@ class bmi_LSTM(BmiBase):
             coerce_config(cfg)
             member = EnsembleMember(cfg, output_factor_cms)
             self.ensemble_members.append(member)
+
+            provided_inputs = {v[0] for v in _static_input_vars} | {v[0] for v in _dynamic_input_vars}
+            required_inputs = set(member.input_names)
+
+            if not required_inputs.issubset(provided_inputs):
+                missing = required_inputs - provided_inputs
+                raise ValueError(
+                    f"Missing required inputs: {missing}.\n"
+                    f"Provided in the config: {provided_inputs}\n"
+                    f"Expected by the lstm: {sorted(required_inputs)}\n"
+                )
 
         # load static variables from config into state
         load_static_attributes(self.cfg_bmi["static_attributes"], self._static_inputs)
