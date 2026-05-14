@@ -71,15 +71,27 @@ from .model_state import State, StateFacade, Var
 
 # --------------   Dynamic Attributes -----------------------------
 _dynamic_input_vars = [
-    ("DLWRF_surface", "W m-2"),
-    ("PRES_surface", "Pa"),
-    ("SPFH_2maboveground", "kg kg-1"),
-    ("APCP_surface", "mm h-1"),
-    ("DSWRF_surface", "W m-2"),
-    ("TMP_2maboveground", "degK"),
-    ("UGRD_10maboveground", "m s-1"),
-    ("VGRD_10maboveground", "m s-1"),
+    ("land_surface_radiation~incoming~longwave__energy_flux", "W m-2"),
+    ("land_surface_air__pressure", "Pa"),
+    ("atmosphere_air_water~vapor__relative_saturation", "kg kg-1"),
+    ("atmosphere_water__liquid_equivalent_precipitation_rate", "mm h-1"),
+    ("land_surface_radiation~incoming~shortwave__energy_flux", "W m-2"),
+    ("land_surface_air__temperature", "degK"),
+    ("land_surface_wind__x_component_of_velocity", "m s-1"),
+    ("land_surface_wind__y_component_of_velocity", "m s-1"),
 ]
+
+# --------------    Name Mappings    -----------------------------
+DYNAMIC_INPUT_NAME_CROSSWALK = {
+    "DLWRF_surface": "land_surface_radiation~incoming~longwave__energy_flux",
+    "PRES_surface": "land_surface_air__pressure",
+    "SPFH_2maboveground": "atmosphere_air_water~vapor__relative_saturation",
+    "APCP_surface": "atmosphere_water__liquid_equivalent_precipitation_rate",
+    "DSWRF_surface": "land_surface_radiation~incoming~shortwave__energy_flux",
+    "TMP_2maboveground": "land_surface_air__temperature",
+    "UGRD_10maboveground": "land_surface_wind__x_component_of_velocity",
+    "VGRD_10maboveground": "land_surface_wind__y_component_of_velocity",
+}
 
 # --------------   Static Attributes -----------------------------
 
@@ -88,6 +100,10 @@ _output_vars = [
     ("land_surface_water__runoff_depth", "m"),
 ]
 
+
+def crosswalk_to_external(name: str):
+    """Return the external name (the name exposed via BMI) for a given internal name."""
+    return DYNAMIC_INPUT_NAME_CROSSWALK.get(name, name)
 
 # ---------------  Ensemble Member -----------------------------
 
@@ -249,10 +265,11 @@ def gather_inputs(
 
     input_list = []
     for name in train_input_names:
-        value = state.value(name)
+        bmi_name = crosswalk_to_external(name)
+        value = state.value(bmi_name)
         assert value.size == 1, "`value` should a single scalar in a 1d array"
         input_list.append(value[0])
-        logger.debug("  var_name=%s", name)
+        logger.debug("  var_name=%s", bmi_name)
         logger.debug("  type(value)=%s", type(value))
         logger.debug("  value=%s", value)
 
@@ -393,7 +410,7 @@ class bmi_LSTM(BmiBase):
             member = EnsembleMember(cfg, output_factor_cms)
             self.ensemble_members.append(member)
 
-            provided_inputs = {v[0] for v in _static_input_vars} | {v[0] for v in _dynamic_input_vars}
+            provided_inputs = {v[0] for v in _static_input_vars} | {v for v in member.input_names if v in DYNAMIC_INPUT_NAME_CROSSWALK}
             required_inputs = set(member.input_names)
 
             if not required_inputs.issubset(provided_inputs):

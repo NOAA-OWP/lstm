@@ -15,25 +15,27 @@ Running this model requires a few Python libraries with specific versions listed
 ## Running BMI LSTM
 This section goes through an example of running the LSTM with the BMI interface. These are only examples. If a user wants to run the LSTM with BMI, then these are a jumping off point. These examples were developed to provide a quick testing ground for running the LSTM with the [NextGen framework](https://github.com/NOAA-OWP/ngen).  See the [`doc/`](./doc) folder for more information regarding running this module within `NextGen` as well as the `ngen_files/README.txt` found [here](./ngen_files.README.txt).
 
-Note that this code assumes the use of the `bmi_lstm` environment for Anaconda. To load this environment, enter `conda activate bmi_lstm`.  Install the library, `pip install lstm` and execute `python -m lstm`.  See [PACKAGE.md](./PACKAGE.md) for more information about running lstm as a Python library. 
 
-Be aware that these scripts are examples and may require changes for your use case. For example, the Python script was developed for the trained LSTM model with limited attributes (`hourly_slope_mean_precip_temp`) and the for loop will need to be changed if running with the LSTM model that was trained with all attributes (an example of this code can be found in the [Jupyter Notebook](./notebooks/run_lstm_with_bmi.ipynb).
+Note that this code assumes the use of the `bmi_lstm` environment for Anaconda. To load this environment, enter `conda activate bmi_lstm`.  Install the library, `pip install lstm` and execute `python -m lstm`.  See [PACKAGE.md](./PACKAGE.md) for more information about running lstm as a Python library.
 
-Running these examples of trained LSTM-based hydrological models require these general steps:  
-1.  Retrieve atmospheric forcing data that match those included in the trained model
-2.  Retrieve the catchment attributes that match those included in the trained model
-3.  Create a configuration file with the key-value pairs that can be used by the BMI
-4.  Run a script with the Python commands for the BMI model control functions
 
-The [Jupyter Notebook](./notebooks/run_lstm_with_bmi.ipynb) and a Python script [`run_lstm_bmi.py`](./lstm/lstm/run_lstm_bmi.py) have an example of running the LSTM with BMI model control functions, which can be summarized as follows:    
+The [Jupyter Notebook](./tests/run_lstm_with_bmi.ipynb) and a Python script [`run_lstm_bmi.py`](./lstm/lstm/run_lstm_bmi.py) have an example of running the LSTM with BMI model control functions, which can be summarized as follows:    
 
-1. `conda activate bmi_lstm`
+1. Activate `bmi_lstm` (using`conda activate bmi_lstm` or `source ~/.bmi_lstm/bin/activate` depending on how the env was created)
 2. Import required libraries (e.g., `import torch`)
 3. Load in the model from the BMI file: `model = lstm.bmi_LSTM()`
 4. Read in the configuration file, and this includes the model weights, etc.: `model.read_cfg_file()`
 5. Now start running the BMI functions, starting with initialize: `model.initialize()`
 6. The model is now available to run either one timestep at a time: `model.update()`, or many timesteps at a time: `model.update_until(model.iend)`, where model.iend is the end of the forcing file, but this can be any value less than or equal to the end of the forcing file.
 7. And finally, you should finalize the model instance: `model.finalize()`  
+
+Be aware that these scripts are examples and may require changes for your use case. For example, the Python script was developed for the trained LSTM model with limited attributes (`hourly_slope_mean_precip_temp`). These example scripts and configuration file will need to be updated running with the LSTM model that was trained with different static attributes.
+
+Running these examples of trained LSTM-based hydrological models require these general steps:  
+1.  Retrieve atmospheric forcing data that match those included in the trained model
+2.  Retrieve the catchment attributes that match those included in the trained model
+3.  Create a configuration file with the key-value pairs that can be used by the BMI
+4.  Run a script with the Python commands for the BMI model control functions
 
 This repository contains an example file with weather and observed streamflow data for four catchments [here](./data/usgs-streamflow-nldas_hourly.nc). Note that the observed streamflow data isn’t necessary to run the model, but is useful for comparison purposes.
 
