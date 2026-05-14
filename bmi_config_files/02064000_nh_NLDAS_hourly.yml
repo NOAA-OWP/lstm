@@ -2,8 +2,6 @@ train_cfg_file: ./trained_neuralhydrology_models/nh_AORC_hourly_slope_elev_preci
 basin_id: '02064000'
 basin_name: FALLING RIVER NEAR NARUNA, VA
 initial_state: zero
-#lat: 37.12681
-#lon: -78.95974
 time_step: 1 hour
 verbose: 0
 static_attributes:
