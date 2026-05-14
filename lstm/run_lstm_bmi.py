@@ -18,7 +18,7 @@ verbose  = False
 # Two Test example basins
 test_basins = ["02064000", "01022500"]
 
-bmi_cfg_file     = f'./bmi_config_files/{test_basins[0]}_nh_NLDAS_hourly.yml' # change index 0 to 1 to test the other basin
+bmi_cfg_file     = f'./configs/{test_basins[0]}_nh_NLDAS_hourly.yml' # change index 0 to 1 to test the other basin
 
 sample_data_file = './data/usgs-streamflow-nldas_hourly.nc'
 

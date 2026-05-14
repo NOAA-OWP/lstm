@@ -40,7 +40,7 @@ bmi=bmi_lstm.bmi_LSTM()
 print("\nBEGIN BMI UNIT TEST\n*******************\n");
 
 # Define config path
-cfg_file= Path('./bmi_config_files/02064000_nh_NLDAS_hourly.yml')
+cfg_file= Path('./configs/02064000_nh_NLDAS_hourly.yml')
 
 if os.path.exists(cfg_file):
     print(" configuration found: " + str(cfg_file))
