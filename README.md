@@ -46,7 +46,7 @@ Included in this directory are three samples of trained LSTM models:
 These three models are trained with different inputs, but they all will run with the same [BMI](./lstm/bmi_lstm.py) and [LSTM](./lstm/nextgen_cuda_lstm.py) model.
 
 ## Running BMI LSTM
-Instructions for running the LSTM with the BMI interface are available in the INSTALL guide.
+Instructions for running the LSTM with the BMI interface are available in the [INSTALL guide](./INSTALL.md).
 
 
 ## Weights and Biases
