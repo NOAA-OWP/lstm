@@ -1,7 +1,7 @@
 # Installation instructions
 
 ## Dependencies
-All Python dependencies are listed in [environment.yml](./environment.yml). LSTM-BMI is compatible with Windows, Linux, and Mac systems.
+All Python dependencies are listed in [pyproject.toml](./pyproject.toml). LSTM-BMI is compatible with Windows, Linux, and Mac systems.
 
 
 ## Build Python Virtual Environment for LSTM
