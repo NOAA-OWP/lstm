@@ -1,0 +1,10 @@
+train_cfg_file: ./trained_neuralhydrology_models/nh_AORC_hourly_slope_elev_precip_temp_seq999_seed101_2801_191806/config.yml
+basin_id: '02064000'
+basin_name: FALLING RIVER NEAR NARUNA, VA
+initial_state: zero
+time_step: 1 hour
+verbose: 0
+static_attributes:
+  slope_mean: 9.95686
+  elev_mean: 192.21
+area_sqkm: 427.77

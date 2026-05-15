@@ -1,3 +1,7 @@
+##################################################################
+# LSTM TEST EXAMPLES WITH PRECIPITATION AND AIR TEMPERATURE INPUTS
+# Target NSE are provided 
+##################################################################
 
 import numpy as np
 import torch
@@ -5,16 +9,18 @@ from torch import nn
 #import data_tools
 from pathlib import Path
 from netCDF4 import Dataset
-# This is the BMI LSTM that we will be running
-import bmi_lstm
+from lstm import bmi_lstm
 
 
-# Define primary bmi config and input data file paths 
-#bmi_cfg_file=Path('./bmi_config_files/01022500_hourly_all_attributes_forcings.yml')
 USE_PATH = True
-run_dir = './'
-bmi_cfg_file  = run_dir + 'bmi_config_files/01022500_hourly_slope_mean_precip_temp.yml'
-sample_data_file = run_dir + 'data/usgs-streamflow-nldas_hourly.nc'
+verbose  = False
+
+# Two Test example basins
+test_basins = ["02064000", "01022500"]
+
+bmi_cfg_file     = f'./configs/{test_basins[0]}_nh_NLDAS_hourly.yml' # change index 0 to 1 to test the other basin
+
+sample_data_file = './data/usgs-streamflow-nldas_hourly.nc'
 
 # creating an instance of an LSTM model
 print('Creating an instance of an BMI_LSTM model object')
@@ -24,41 +30,71 @@ model = bmi_lstm.bmi_LSTM()
 print('Initializing the BMI')
 model.initialize(bmi_cfg_file)
 
+##############################################################
 # Get input data that matches the LSTM test runs
 print('Gathering input data')
 sample_data = Dataset(sample_data_file, 'r')
 
-# Now loop through the inputs, set the forcing values, and update the model
-print('Set values & update model for number of timesteps = 100')
-for precip, temp in zip(list(sample_data['total_precipitation'][3].data),
-                        list(sample_data['temperature'][3].data)):
+# Sample basins
+sample_basins = {sample_data['basin'][x]:x for x in range(len(list(sample_data['basin'])))}
+print ("Sample basins: ", sample_basins)
 
-    #model.set_value('atmosphere_water__time_integral_of_precipitation_mass_flux',np.atleast_1d(precip))
+# Currently selected basins
+current_basin_index = sample_basins[model.cfg_bmi['basin_id']]
+current_basin_gage_id = list(sample_basins.keys())[current_basin_index]
+print ("Current Test Basin: ", current_basin_gage_id)
+
+
+##############################################################
+# Precip and temparature data
+precip_data   = sample_data['total_precipitation'][current_basin_index].data
+temp_data     = sample_data['temperature'][current_basin_index].data
+n_timesteps   = precip_data.size
+runoff_output = np.zeros(n_timesteps)
+m_to_mm = 1000
+C_to_K = 273.15
+##############################################################
+
+
+for ts in range(n_timesteps):
+    precip = precip_data[ts]
+    temp   = temp_data[ts] + C_to_K
     model.set_value('atmosphere_water__liquid_equivalent_precipitation_rate',np.atleast_1d(precip))
     model.set_value('land_surface_air__temperature',np.atleast_1d(temp))
 
-    #dest_array = np.zeros(1)
-    #model.get_value('land_surface_air__temperature', dest_array)
-    #temps = dest_array[0]
-    #model.get_value('atmosphere_water__time_integral_of_precipitation_mass_flux', dest_array)
-    #model.get_value('atmosphere_water__liquid_equivalent_precipitation_rate', dest_array)
-    #precips = dest_array[0]
+    if verbose:
+        print(' Temperature and precipitation are set to {:.2f} and {:.2f}'.format(temp, precip))
 
-    #print(' Temperature and precipitation are set to {:.2f} and {:.2f}'.format(temperature, precip))
-    print(' Temperature and precipitation are set to {:.2f} and {:.2f}'.format(temp, precip))
-    #model.update_until(model.t+model._time_step_size)
     model.update()
 
     dest_array = np.zeros(1)
-    model.get_value('land_surface_water__runoff_volume_flux', dest_array)
+    model.get_value('land_surface_water__runoff_depth', dest_array) # runoff_depht in meters
     runoff = dest_array[0]
+    runoff_output[ts] = runoff * m_to_mm
 
-    print(' Streamflow (cms) at time {} ({}) is {:.2f}'.format(model.get_current_time(), model.get_time_units(), runoff))
-
-    if model.t > 100:
-        #print('Stopping the loop')
-        break
+    if verbose:
+        print(' Streamflow (cms) at time {} ({}) is {:.2f}'.format(model.get_current_time(), model.get_time_units(), runoff))
 
 # Finalizing the BMI
 print('Finalizing the BMI')
 model.finalize()
+
+target_nse = None
+
+if (current_basin_gage_id == "01022500"):
+    target_nse = 0.58
+if (current_basin_gage_id == "02064000"):
+    target_nse = 0.11
+
+    
+# Calculate a metric
+obs = np.array(sample_data['qobs_CAMELS_mm_per_hour'][current_basin_index])
+sim = runoff_output
+
+denominator = ((obs - obs.mean())**2).sum()
+numerator   = ((sim - obs)**2).sum()
+current_nse = 1 - numerator / denominator
+
+print ("======= NSE Comparison ===========")
+print("Target NSE  = {:.2f}".format(target_nse))
+print("Current NSE = {:.2f}".format(current_nse))

@@ -1,0 +1,10 @@
+train_cfg_file: ./trained_neuralhydrology_models/nh_AORC_hourly_slope_elev_precip_temp_seq999_seed101_2801_191806/config.yml
+basin_id: '01022500'
+basin_name: Narraguagus River at Cherryfield, Maine
+initial_state: zero
+time_step: 1 hour
+verbose: 0
+static_attributes:
+  slope_mean: 17.79072  
+  elev_mean: 92.68
+area_sqkm: 573.6

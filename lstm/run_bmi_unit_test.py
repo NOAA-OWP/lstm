@@ -10,8 +10,8 @@ import numpy as np
 #from torch import nn
 from pathlib import Path
 from netCDF4 import Dataset
-import bmi_lstm # This is the BMI LSTM that we will be running
-
+#import bmi_lstm # This is the BMI LSTM that we will be running
+from lstm import bmi_lstm
 
 # setup a "success counter" for number of passing and failing bmi functions
 # keep track of function def fails (vs function call)
@@ -40,8 +40,7 @@ bmi=bmi_lstm.bmi_LSTM()
 print("\nBEGIN BMI UNIT TEST\n*******************\n");
 
 # Define config path
-cfg_file=Path('./bmi_config_files/01022500_hourly_all_attributes_forcings.yml')
-#cfg_file=Path('./bmi_config_files/01022500_hourly_slope_mean_precip_temp.yml')
+cfg_file= Path('./configs/02064000_nh_NLDAS_hourly.yml')
 
 if os.path.exists(cfg_file):
     print(" configuration found: " + str(cfg_file))
@@ -419,4 +418,4 @@ except:
 print ("\n Total BMI function PASS: " + str(pass_count))
 print (" Total BMI function FAIL: " + str(fail_count))
 for ff in fail_list:
-    print ("  " + ff)   
+    print ("  " + ff)
