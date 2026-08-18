@@ -32,7 +32,7 @@ jobs:
     - name: Install dependencies
       run: |
         pip install -U pip # upgrade pip
-        pip install '.[develop]'
+        pip install '.[develop]' './lstm_ewts'
     - name: Echo dependency versions
       run: |
         pip freeze

@@ -66,8 +66,11 @@ except ImportError:
 
 from . import nextgen_cuda_lstm
 from .base import BmiBase
-from .logger import configure_logging, logger
+from lstm_ewts import configure_logging, MODULE_NAME
 from .model_state import State, StateFacade, Var
+
+import logging
+LOG = logging.getLogger(MODULE_NAME)
 
 # --------------   Dynamic Attributes -----------------------------
 _dynamic_input_vars = [
@@ -89,6 +92,7 @@ _static_input_vars = [
 _output_vars = [
     ("land_surface_water__runoff_volume_flux", "m3 s-1"),
     ("land_surface_water__runoff_depth", "m"),
+    ("precipitation_rate", "mm s-1"),
 ]
 
 # --------------    Name Mappings    -----------------------------
@@ -177,6 +181,9 @@ class EnsembleMember:
         with torch.no_grad():
             inputs = gather_inputs(state, self.input_names)
 
+            # Retrieve precipitation value for output
+            precipitation_mm_h = state.value("atmosphere_water__liquid_equivalent_precipitation_rate")
+
             scaled = scale_inputs(
                 inputs, self.scalars.input_mean, self.scalars.input_std
             )
@@ -194,6 +201,7 @@ class EnsembleMember:
                 self.scalars.output_mean,
                 self.scalars.output_std,
                 self.output_scaling_factor_cms,
+                precipitation_mm_h
             )
 
 
@@ -286,7 +294,7 @@ def initialize_lstm(cfg: dict[str, typing.Any]) -> nextgen_cuda_lstm.Nextgen_Cud
 def gather_inputs(
     state: Valuer, internal_input_names: typing.Iterable[str]
 ) -> npt.NDArray:
-    logger.debug("Collecting LSTM inputs ...")
+    LOG.debug("Collecting LSTM inputs ...")
 
     input_list = []
     for lstm_name in internal_input_names:
@@ -294,29 +302,29 @@ def gather_inputs(
         value = state.value(bmi_name)
         assert value.size == 1, "`value` should a single scalar in a 1d array"
         input_list.append(value[0])
-        logger.debug("  lstm_name=%s", lstm_name)
-        logger.debug("  bmi_name=%s", bmi_name)
-        logger.debug("  type(value)=%s", type(value))
-        logger.debug("  value=%s", value)
+        LOG.debug(f"  {lstm_name=}")
+        LOG.debug(f"  {bmi_name=}")
+        LOG.debug(f"  {type(value)=}")
+        LOG.debug(f"  {value=}")
 
     collected = bmi_array(input_list)
-    logger.debug("Collected inputs: %s",collected)
+    LOG.debug(f"Collected inputs: %s", collected)
     return collected
 
 
 def scale_inputs(
     input: npt.NDArray, mean: npt.NDArray, std: npt.NDArray
 ) -> npt.NDArray:
-    logger.debug("Normalizing the tensor...")
-    logger.debug("  input_mean =", mean)
-    logger.debug("  input_std  =", std)
+    LOG.debug("Normalizing the tensor...")
+    LOG.debug("  input_mean = %s", mean)
+    LOG.debug("  input_std  = %s", std)
 
     # Center and scale the input values for use in torch
     input_array_scaled = (input - mean) / std
-    logger.debug("### input_array =%s", input)
-    logger.debug("### dtype(input_array) =%s", input.dtype)
-    logger.debug("### type(input_array_scaled) =%s", type(input_array_scaled))
-    logger.debug("### dtype(input_array_scaled) =%s", input_array_scaled.dtype)
+    LOG.debug("### input_array = %s", input)
+    LOG.debug("### dtype(input_array) = %s", input.dtype)
+    LOG.debug("### type(input_array_scaled) = %s", type(input_array_scaled))
+    LOG.debug("### dtype(input_array_scaled) = %s", input_array_scaled.dtype)
     return input_array_scaled
 
 
@@ -326,8 +334,9 @@ def scale_outputs(
     output_mean: npt.NDArray,
     output_std: npt.NDArray,
     output_scale_factor_cms: float,
+    precipitation_value: npt.NDArray,
 ):
-    logger.debug("model output: %s", output[0, 0, 0].numpy().tolist())
+    LOG.debug(f"model output: {output[0, 0, 0].numpy().tolist()}")
 
     if cfg["target_variables"][0] in ["qobs_mm_per_hour", "QObs(mm/hr)", "QObs(mm/h)"]:
         surface_runoff_mm = output[0, 0, 0].numpy() * output_std + output_mean
@@ -350,6 +359,9 @@ def scale_outputs(
     # (1/1000) * (self.cfg_bmi['area_sqkm'] * 1000*1000) * (1/3600)
     surface_runoff_volume_m3_s = surface_runoff_mm * output_scale_factor_cms
 
+    # Convert precipitation for mm/h to mm/s for output
+    precip_mms = precipitation_value[0] / 3600.0
+
     # TODO: aaraney: consider making this into a class or closure to avoid so
     # many small allocations.
     yield from (
@@ -362,6 +374,11 @@ def scale_outputs(
             name="land_surface_water__runoff_volume_flux",
             unit="m3 s-1",
             value=bmi_array([surface_runoff_volume_m3_s]),
+        ),
+        Var(
+            name="precipitation_rate",
+            unit="mm s-1",
+            value=bmi_array([precip_mms])
         ),
     )
 
@@ -406,15 +423,16 @@ class bmi_LSTM(BmiBase):
         self.ensemble_members: list[EnsembleMember]
 
     def initialize(self, config_file: str) -> None:
+
+        # configure the Error Warning and Trapping System logger
+        configure_logging()
+
+        LOG.info(f"Initializing with {config_file}")
+
         # read and setup main configuration file
         with open(config_file, "r") as fp:
             self.cfg_bmi = yaml.load(fp, Loader=SafeLoader)
         coerce_config(self.cfg_bmi)
-
-        # TODO: aaraney: config logging levels to python logging levels
-        # setup logging
-        # self.cfg_bmi["verbose"]
-        configure_logging()
 
         # ----------- The output is area normalized, this is needed to un-normalize it
         #                         mm->m                             km2 -> m2          hour->s
@@ -461,7 +479,7 @@ class bmi_LSTM(BmiBase):
     def update_until(self, time: float) -> None:
         if time <= self.get_current_time():
             current_time = self.get_current_time()
-            logger.warning("no update performed: time=%s <= current_time=%s", time, current_time)
+            LOG.warning(f"no update performed: {time=} <= {current_time=}")
             return None
 
         n_steps, remainder = divmod(
@@ -469,8 +487,8 @@ class bmi_LSTM(BmiBase):
         )
 
         if remainder != 0:
-            logger.warning(
-                "time is not multiple of time step size. updating until: %s", (time - remainder)
+            LOG.warning(
+                f"time is not multiple of time step size. updating until: {time - remainder=} "
             )
 
         for _ in range(int(n_steps)):
