@@ -7,7 +7,7 @@ from pathlib import Path
 from netCDF4 import Dataset
 # This is the BMI LSTM that we will be running
 import bmi_lstm
-
+from .logger import logger
 
 # Define primary bmi config and input data file paths 
 #bmi_cfg_file=Path('./bmi_config_files/01022500_hourly_all_attributes_forcings.yml')
@@ -17,19 +17,19 @@ bmi_cfg_file  = run_dir + 'bmi_config_files/01022500_hourly_slope_mean_precip_te
 sample_data_file = run_dir + 'data/usgs-streamflow-nldas_hourly.nc'
 
 # creating an instance of an LSTM model
-print('Creating an instance of an BMI_LSTM model object')
+logger.debug('Creating an instance of an BMI_LSTM model object')
 model = bmi_lstm.bmi_LSTM()
 
 # Initializing the BMI
-print('Initializing the BMI')
+logger.debug('Initializing the BMI')
 model.initialize(bmi_cfg_file)
 
 # Get input data that matches the LSTM test runs
-print('Gathering input data')
+logger.debug('Gathering input data')
 sample_data = Dataset(sample_data_file, 'r')
 
 # Now loop through the inputs, set the forcing values, and update the model
-print('Set values & update model for number of timesteps = 100')
+logger.debug('Set values & update model for number of timesteps = 100')
 for precip, temp in zip(list(sample_data['total_precipitation'][3].data),
                         list(sample_data['temperature'][3].data)):
 
@@ -44,8 +44,8 @@ for precip, temp in zip(list(sample_data['total_precipitation'][3].data),
     #model.get_value('atmosphere_water__liquid_equivalent_precipitation_rate', dest_array)
     #precips = dest_array[0]
 
-    #print(' Temperature and precipitation are set to {:.2f} and {:.2f}'.format(temperature, precip))
-    print(' Temperature and precipitation are set to {:.2f} and {:.2f}'.format(temp, precip))
+    #logger.debug(' Temperature and precipitation are set to {:.2f} and {:.2f}'.format(temperature, precip))
+    logger.debug(' Temperature and precipitation are set to {:.2f} and {:.2f}'.format(temp, precip))
     #model.update_until(model.t+model._time_step_size)
     model.update()
 
@@ -53,12 +53,12 @@ for precip, temp in zip(list(sample_data['total_precipitation'][3].data),
     model.get_value('land_surface_water__runoff_volume_flux', dest_array)
     runoff = dest_array[0]
 
-    print(' Streamflow (cms) at time {} ({}) is {:.2f}'.format(model.get_current_time(), model.get_time_units(), runoff))
+    logger.debug(' Streamflow (cms) at time {} ({}) is {:.2f}'.format(model.get_current_time(), model.get_time_units(), runoff))
 
     if model.t > 100:
-        #print('Stopping the loop')
+        #logger.debug('Stopping the loop')
         break
 
 # Finalizing the BMI
-print('Finalizing the BMI')
+logger.debug('Finalizing the BMI')
 model.finalize()
