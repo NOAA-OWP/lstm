@@ -53,10 +53,13 @@ import collections
 import typing
 from dataclasses import dataclass
 from pathlib import Path
+from datetime import datetime, timezone
+import logging
 
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+import pickle
 import torch
 import yaml
 try:
@@ -66,8 +69,49 @@ except ImportError:
 
 from . import nextgen_cuda_lstm
 from .base import BmiBase
-from .logger import configure_logging, logger
 from .model_state import State, StateFacade, Var
+
+LOG = logging.getLogger("LSTM")
+try:
+    from ewts.helper import getenv_any
+    from ewts.logger import configure_existing_logger
+    LSTM_USE_EWTS = True
+except ImportError:
+    LSTM_USE_EWTS = False
+
+import os
+
+# NOTE: Helper function to ensure reading env vars
+# When run within ngen some env vars are set from C++ after the 
+# Python interpreter has started.
+# In embedded Python, os.environ may not reflect those changes.
+# getenv_any() falls back to libc getenv() and syncs os.environ.
+def getenv_any(key: str, default: str = "") -> str:
+    """
+    Get an environment variable reliably even when it is set from C/C++
+    after the Python interpreter has started (embedded Python).
+    Prefers os.environ/os.getenv, falls back to libc getenv.
+    """
+    # First try Python's mapping
+    v = os.environ.get(key)
+    if v is not None:
+        return v
+
+    # Fallback: direct libc getenv (sees process env even if Python mapping is stale)
+    try:
+        import ctypes, ctypes.util
+        libc = ctypes.CDLL(ctypes.util.find_library("c"))
+        libc.getenv.restype = ctypes.c_char_p
+        b = libc.getenv(key.encode("utf-8"))
+        if not b:
+            return default
+        s = b.decode("utf-8")
+
+        # Sync back into os.environ so future lookups work normally
+        os.environ[key] = s
+        return s
+    except Exception:
+        return default
 
 # --------------   Dynamic Attributes -----------------------------
 _dynamic_input_vars = [
@@ -89,6 +133,7 @@ _static_input_vars = [
 _output_vars = [
     ("land_surface_water__runoff_volume_flux", "m3 s-1"),
     ("land_surface_water__runoff_depth", "m"),
+    ("precipitation_rate", "mm s-1"),
 ]
 
 # --------------    Name Mappings    -----------------------------
@@ -177,6 +222,9 @@ class EnsembleMember:
         with torch.no_grad():
             inputs = gather_inputs(state, self.input_names)
 
+            # Retrieve precipitation value for output
+            precipitation_mm_h = state.value("atmosphere_water__liquid_equivalent_precipitation_rate")
+
             scaled = scale_inputs(
                 inputs, self.scalars.input_mean, self.scalars.input_std
             )
@@ -194,7 +242,18 @@ class EnsembleMember:
                 self.scalars.output_mean,
                 self.scalars.output_std,
                 self.output_scaling_factor_cms,
+                precipitation_mm_h
             )
+
+    def serialize(self):
+        return {
+            "h": self.h_t.numpy(),
+            "c": self.c_t.numpy()
+        }
+
+    def deserialize(self, data: dict):
+        self.h_t = torch.from_numpy(data["h"])
+        self.c_t = torch.from_numpy(data["c"])
 
 
 def bmi_array(arr: list[float]) -> npt.NDArray:
@@ -286,7 +345,7 @@ def initialize_lstm(cfg: dict[str, typing.Any]) -> nextgen_cuda_lstm.Nextgen_Cud
 def gather_inputs(
     state: Valuer, internal_input_names: typing.Iterable[str]
 ) -> npt.NDArray:
-    logger.debug("Collecting LSTM inputs ...")
+    LOG.debug("Collecting LSTM inputs ...")
 
     input_list = []
     for lstm_name in internal_input_names:
@@ -294,29 +353,30 @@ def gather_inputs(
         value = state.value(bmi_name)
         assert value.size == 1, "`value` should a single scalar in a 1d array"
         input_list.append(value[0])
-        logger.debug("  lstm_name=%s", lstm_name)
-        logger.debug("  bmi_name=%s", bmi_name)
-        logger.debug("  type(value)=%s", type(value))
-        logger.debug("  value=%s", value)
+
+        LOG.debug(f"  {lstm_name=}")
+        LOG.debug(f"  {bmi_name=}")
+        LOG.debug(f"  {type(value)=}")
+        LOG.debug(f"  {value=}")
 
     collected = bmi_array(input_list)
-    logger.debug("Collected inputs: %s",collected)
+    LOG.debug(f"Collected inputs: %s", collected)
     return collected
 
 
 def scale_inputs(
     input: npt.NDArray, mean: npt.NDArray, std: npt.NDArray
 ) -> npt.NDArray:
-    logger.debug("Normalizing the tensor...")
-    logger.debug("  input_mean =", mean)
-    logger.debug("  input_std  =", std)
+    LOG.debug("Normalizing the tensor...")
+    LOG.debug("  input_mean = %s", mean)
+    LOG.debug("  input_std  = %s", std)
 
     # Center and scale the input values for use in torch
     input_array_scaled = (input - mean) / std
-    logger.debug("### input_array =%s", input)
-    logger.debug("### dtype(input_array) =%s", input.dtype)
-    logger.debug("### type(input_array_scaled) =%s", type(input_array_scaled))
-    logger.debug("### dtype(input_array_scaled) =%s", input_array_scaled.dtype)
+    LOG.debug("### input_array = %s", input)
+    LOG.debug("### dtype(input_array) = %s", input.dtype)
+    LOG.debug("### type(input_array_scaled) = %s", type(input_array_scaled))
+    LOG.debug("### dtype(input_array_scaled) = %s", input_array_scaled.dtype)
     return input_array_scaled
 
 
@@ -326,8 +386,9 @@ def scale_outputs(
     output_mean: npt.NDArray,
     output_std: npt.NDArray,
     output_scale_factor_cms: float,
+    precipitation_value: npt.NDArray,
 ):
-    logger.debug("model output: %s", output[0, 0, 0].numpy().tolist())
+    LOG.debug(f"model output: {output[0, 0, 0].numpy().tolist()}")
 
     if cfg["target_variables"][0] in ["qobs_mm_per_hour", "QObs(mm/hr)", "QObs(mm/h)"]:
         surface_runoff_mm = output[0, 0, 0].numpy() * output_std + output_mean
@@ -350,6 +411,9 @@ def scale_outputs(
     # (1/1000) * (self.cfg_bmi['area_sqkm'] * 1000*1000) * (1/3600)
     surface_runoff_volume_m3_s = surface_runoff_mm * output_scale_factor_cms
 
+    # Convert precipitation for mm/h to mm/s for output
+    precip_mms = precipitation_value[0] / 3600.0
+
     # TODO: aaraney: consider making this into a class or closure to avoid so
     # many small allocations.
     yield from (
@@ -362,6 +426,11 @@ def scale_outputs(
             name="land_surface_water__runoff_volume_flux",
             unit="m3 s-1",
             value=bmi_array([surface_runoff_volume_m3_s]),
+        ),
+        Var(
+            name="precipitation_rate",
+            unit="mm s-1",
+            value=bmi_array([precip_mms])
         ),
     )
 
@@ -384,12 +453,60 @@ def load_static_attributes(cfg: dict[str, typing.Any], state: State):
         value = cfg[internal_name]
         state.set_value(external_name, bmi_array([value]))
 
+class StdoutStyleFormatter(logging.Formatter):
+
+    INFO_FORMAT = (
+        "%(asctime)s %(name)-8s %(levelname)-7s %(message)s"
+    )
+
+    DETAILED_FORMAT = (
+        "%(asctime)s %(name)-8s %(levelname)-7s "
+        "%(message)s "
+        "[%(filename)s.%(funcName)s(L%(lineno)s)]"
+    )
+
+    def format(self, record):
+        if record.levelno == logging.INFO:
+            self._style._fmt = self.INFO_FORMAT
+        else:
+            self._style._fmt = self.DETAILED_FORMAT
+
+        return super().format(record)
+    
+    def formatTime(self, record, datefmt=None):
+        dt = datetime.fromtimestamp(record.created, tz=timezone.utc)
+        return dt.strftime("%Y-%m-%dT%H:%M:%S.%f")[:-3] + "Z"
+    
+
+def _configure_stdout_logging():
+    LOG.setLevel(logging.INFO)
+
+    if not LOG.handlers:
+        handler = logging.StreamHandler()
+        handler.setLevel(logging.INFO)
+        handler.setFormatter(StdoutStyleFormatter())
+        LOG.addHandler(handler)
+
+    LOG.propagate = False
 
 class bmi_LSTM(BmiBase):
     _timestep_size_s: typing.Final[int] = 3600
     """model timestep size in seconds"""
 
     def __init__(self) -> None:
+        if LSTM_USE_EWTS:
+            # Determine if running within ngen using EWTS. This must be done  
+            # here when the model actually runs vs when it is imported 
+            # into the ngen Python interpreter to ensure the env vars are set.
+            val = getenv_any("EWTS_USE_NGEN_BRIDGE", "").strip().lower()
+            if val in {"1", "true", "yes", "on"}:
+                configure_existing_logger(LOG)
+            else:
+                _configure_stdout_logging()
+                LOG.warning("ewts package installed but EWTS_USE_NGEN_BRIDGE not on. Falling back to default logging.")
+        else:
+            _configure_stdout_logging()
+
         # _bmi_ variable state; this is separate from lstm ensemble member state.
         self._dynamic_inputs = build_state(_dynamic_input_vars)
         self._static_inputs = build_state(_static_input_vars)
@@ -405,16 +522,18 @@ class bmi_LSTM(BmiBase):
         self.cfg_bmi: dict[str, typing.Any]
         self.ensemble_members: list[EnsembleMember]
 
+        # statically stored seriaized data
+        self._serialized_size = np.array([0], dtype=np.uint64)
+        self._serialized = np.array([], dtype=np.uint8)
+
     def initialize(self, config_file: str) -> None:
+
+        LOG.info(f"Initializing with {config_file}")
+
         # read and setup main configuration file
         with open(config_file, "r") as fp:
             self.cfg_bmi = yaml.load(fp, Loader=SafeLoader)
         coerce_config(self.cfg_bmi)
-
-        # TODO: aaraney: config logging levels to python logging levels
-        # setup logging
-        # self.cfg_bmi["verbose"]
-        configure_logging()
 
         # ----------- The output is area normalized, this is needed to un-normalize it
         #                         mm->m                             km2 -> m2          hour->s
@@ -461,7 +580,7 @@ class bmi_LSTM(BmiBase):
     def update_until(self, time: float) -> None:
         if time <= self.get_current_time():
             current_time = self.get_current_time()
-            logger.warning("no update performed: time=%s <= current_time=%s", time, current_time)
+            LOG.warning(f"no update performed: {time=} <= {current_time=}")
             return None
 
         n_steps, remainder = divmod(
@@ -469,8 +588,8 @@ class bmi_LSTM(BmiBase):
         )
 
         if remainder != 0:
-            logger.warning(
-                "time is not multiple of time step size. updating until: %s", (time - remainder)
+            LOG.warning(
+                f"time is not multiple of time step size. updating until: {time - remainder=} "
             )
 
         for _ in range(int(n_steps)):
@@ -500,16 +619,38 @@ class bmi_LSTM(BmiBase):
         return 0
 
     def get_var_type(self, name: str) -> str:
+        if name == "serialization_state":
+            return self._serialized.dtype.name
+        elif name == "serialization_size" or name == "serialization_create":
+            return self._serialized_size.dtype.name
+        elif name == "serialization_free":
+            return np.dtype(np.intc).name
+        elif name == "reset_time":
+            return np.dtype(np.double).name
         return self.get_value_ptr(name).dtype.name
 
     def get_var_units(self, name: str) -> str:
         return first_containing(name, self._outputs, self._dynamic_inputs).unit(name)
 
     def get_var_itemsize(self, name: str) -> int:
+        if name == "serialization_state":
+            return self._serialized.dtype.itemsize
+        if name == "serialization_size" or name == "serialization_create":
+            return self._serialized_size.dtype.itemsize
+        if name == "serialization_free":
+            return np.dtype(np.intc).itemsize
+        if name == "reset_time":
+            return np.dtype(np.double).itemsize
         return self.get_value_ptr(name).itemsize
 
     def get_var_nbytes(self, name: str) -> int:
-        return self.get_var_itemsize(name) * len(self.get_value_ptr(name))
+        if name == "serialization_create":
+            return self._serialized_size.nbytes
+        if name == "serialization_free":
+            return np.dtype(np.intc).itemsize
+        if name == "reset_time":
+            return np.dtype(np.double).itemsize
+        return self.get_value_ptr(name).nbytes
 
     def get_var_location(self, name: str) -> str:
         # raises KeyError on failure
@@ -538,6 +679,10 @@ class bmi_LSTM(BmiBase):
 
     def get_value_ptr(self, name: str) -> np.ndarray:
         """Returns a _reference_ to a variable's np.NDArray."""
+        if name == "serialization_state":
+            return self._serialized
+        elif name == "serialization_size":
+            return self._serialized_size
         return first_containing(name, self._outputs, self._dynamic_inputs).value(name)
 
     def get_value_at_indices(
@@ -548,9 +693,18 @@ class bmi_LSTM(BmiBase):
         ).value_at_indices(name, dest, inds)
 
     def set_value(self, name: str, src: np.ndarray) -> None:
-        return first_containing(name, self._outputs, self._dynamic_inputs).set_value(
-            name, src
-        )
+        if name == "serialization_state":
+            self._deserialize(src)
+        elif name == "serialization_create":
+            self._serialize()
+        elif name == "serialization_free":
+            self._free_serialized()
+        elif name == "reset_time":
+            self._timestep = 0
+        else:
+            return first_containing(name, self._outputs, self._dynamic_inputs).set_value(
+                name, src
+            )
 
     def set_value_at_indices(
         self, name: str, inds: np.ndarray, src: np.ndarray
@@ -577,6 +731,38 @@ class bmi_LSTM(BmiBase):
         if grid == 0:
             return "scalar"
         raise RuntimeError(f"unsupported grid type: {grid!s}. only support 0")
+
+    def _serialize(self):
+        """Convert all dynamic properties that can change after the `bmi_LSTM` has had `initialize()` called into an object that can be serialized through `pickle`. 
+        Then, set the BMI's `_serialized` property to the byte representation of that pickled data and adjust the static `_serialized_size` property."""
+        data = {
+            "dynamic_inputs": self._dynamic_inputs.serialize(),
+            "static_inputs": self._static_inputs.serialize(),
+            "outputs": self._outputs.serialize(),
+            "ensemble": [em.serialize() for em in self.ensemble_members],
+            "timestep": self._timestep,
+        }
+        serialized = pickle.dumps(data)
+        self._serialized = np.array(bytearray(serialized), dtype=np.uint8)
+        self._serialized_size[0] = len(self._serialized)
+
+    def _deserialize(self, array: np.ndarray):
+        """Interpret the bytes of the numpy array as previously pickled data from `_serialize()` and update the current values. 
+        No data structure check will be made on the input array or loaded bytes. It will be assumed that the input data is of the same structure as what is generated from `_serialize()`."""
+        data = bytes(array)
+        deserialized = pickle.loads(data)
+        self._dynamic_inputs.deserialize(deserialized["dynamic_inputs"])
+        self._static_inputs.deserialize(deserialized["static_inputs"])
+        self._outputs.deserialize(deserialized["outputs"])
+        for bmi_em, data_em in zip(self.ensemble_members, deserialized["ensemble"], strict=True):
+            bmi_em.deserialize(data_em)
+        self._timestep = deserialized["timestep"]
+        self._free_serialized()
+
+    def _free_serialized(self):
+        """Clear the current serialized data and set the size property value to 0."""
+        self._serialized_size[0] = 0
+        self._serialized = np.array([], dtype=self._serialized.dtype)
 
 
 def coerce_config(cfg: dict[str, typing.Any]):
