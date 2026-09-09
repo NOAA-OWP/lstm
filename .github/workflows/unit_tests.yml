@@ -32,7 +32,8 @@ jobs:
     - name: Install dependencies
       run: |
         pip install -U pip # upgrade pip
-        pip install '.[develop]' './lstm_ewts'
+        pip install git+https://github.com/noaa-owp/nwm-ewts.git#subdirectory=runtime/python/ewts
+        pip install '.[develop]'
     - name: Echo dependency versions
       run: |
         pip freeze

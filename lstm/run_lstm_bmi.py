@@ -7,10 +7,13 @@ from pathlib import Path
 from netCDF4 import Dataset
 # This is the BMI LSTM that we will be running
 import bmi_lstm
-from .logger import MODULE_NAME
 
 import logging
-LOG = logging.getLogger(MODULE_NAME)
+LOG = logging.getLogger("LSTM")
+logging.basicConfig(
+    level=logging.DEBUG,
+    format='%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)s - %(funcName)s]: %(message)s',
+)
 
 # Define primary bmi config and input data file paths 
 #bmi_cfg_file=Path('./bmi_config_files/01022500_hourly_all_attributes_forcings.yml')

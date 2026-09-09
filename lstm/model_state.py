@@ -94,6 +94,23 @@ class State:
     def __len__(self) -> int:
         return len(self._name_mapping)
 
+    def serialize(self):
+        """Return the State represented as a list of dicts representing the `Var` properties."""
+        return [
+            {"name": var.name, "unit": var.unit, "value": var.value}
+            for var in self._name_mapping.values()
+        ]
+
+    def deserialize(self, values: list):
+        """Replace the current Vars with values from the intput list."""
+        self._name_mapping.clear()
+        for var in values:
+            self._name_mapping[var["name"]] = Var(
+                name=var["name"],
+                unit=var["unit"],
+                value=var["value"]
+            )
+
 
 class StateFacade:
     """
