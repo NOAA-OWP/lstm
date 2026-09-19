@@ -11,7 +11,7 @@ import lstm.bmi_lstm as bmi_lstm
 USE_PATH = True  # (SDP; also set in bmi_lstm.py.)
 # run_dir = './extern/lstm_py/'  # (SDP)
 run_dir = './'
-cfg_file  = run_dir + 'bmi_config_files/01022500_hourly_slope_mean_precip_temp.yml'
+cfg_file  = run_dir + 'configs/01022500_hourly_slope_mean_precip_temp.yml'
 data_file = run_dir + 'data/usgs-streamflow-nldas_hourly.nc'
     
 def execute():

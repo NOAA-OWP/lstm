@@ -50,6 +50,7 @@
 from __future__ import annotations
 
 import collections
+import functools
 import typing
 from dataclasses import dataclass
 from pathlib import Path
@@ -65,9 +66,21 @@ except ImportError:
     from yaml import SafeLoader
 
 from . import nextgen_cuda_lstm
+from . import serialization_codec
+from .serialization_protocol import SerializationProtocol
+# The reserved protocol names are defined by `serialization_protocol`. They are
+# imported here (not re-defined) so callers written against this module before
+# the protocol had its own module can still reach them through it.
+from .serialization_protocol import (  # noqa: F401
+    SERIALIZATION_CREATE,
+    SERIALIZATION_FREE,
+    SERIALIZATION_SIZE,
+    SERIALIZATION_STATE,
+)
 from .base import BmiBase
 from .logger import configure_logging, logger
 from .model_state import State, StateFacade, Var
+from .torch_threads import CONFIG_KEY as TORCH_THREADS_KEY, configure_torch_threads
 
 # --------------   Dynamic Attributes -----------------------------
 _dynamic_input_vars = [
@@ -80,20 +93,9 @@ _dynamic_input_vars = [
     ("land_surface_wind__x_component_of_velocity", "m s-1"),
     ("land_surface_wind__y_component_of_velocity", "m s-1"),
 ]
-# --------------   Static Attributes -----------------------------
-_static_input_vars = [
-    ("basin__mean_of_elevation", "m"),
-    ("basin__mean_of_slope", "m km-1"),
-]
-
-_output_vars = [
-    ("land_surface_water__runoff_volume_flux", "m3 s-1"),
-    ("land_surface_water__runoff_depth", "m"),
-]
 
 # --------------    Name Mappings    -----------------------------
-INTERNAL_NAME_CROSSWALK = {
-    # dynamic inputs
+DYNAMIC_INPUT_NAME_CROSSWALK = {
     "DLWRF_surface": "land_surface_radiation~incoming~longwave__energy_flux",
     "PRES_surface": "land_surface_air__pressure",
     "SPFH_2maboveground": "atmosphere_air_water~vapor__relative_saturation",
@@ -102,99 +104,21 @@ INTERNAL_NAME_CROSSWALK = {
     "TMP_2maboveground": "land_surface_air__temperature",
     "UGRD_10maboveground": "land_surface_wind__x_component_of_velocity",
     "VGRD_10maboveground": "land_surface_wind__y_component_of_velocity",
-    # static inputs
-    "elev_mean": "basin__mean_of_elevation",
-    "slope_mean": "basin__mean_of_slope",
-    # outputs
-    "streamflow_cms": "land_surface_water__runoff_volume_flux",
-    "streamflow_m": "land_surface_water__runoff_depth",
 }
-"""
-Mapping from 'internal' names to 'external' names (names exposed via bmi).
-Internal names are meaningful to trained lstm models.
-Its healthy to think of internal names as aliases to external names.
-"""
 
-EXTERNAL_NAME_CROSSWALK = {v: k for k, v in INTERNAL_NAME_CROSSWALK.items()}
-"""Mapping from 'external' names to 'internal' names."""
+# --------------   Static Attributes -----------------------------
+
+_output_vars = [
+    ("land_surface_water__runoff_volume_flux", "m3 s-1"),
+    ("land_surface_water__runoff_depth", "m"),
+]
 
 
 def crosswalk_to_external(name: str):
     """Return the external name (the name exposed via BMI) for a given internal name."""
-    return INTERNAL_NAME_CROSSWALK[name]
+    return DYNAMIC_INPUT_NAME_CROSSWALK.get(name, name)
 
-
-def crosswalk_to_interal(name: str):
-    """Return the internal name for a given external name (the name exposed via BMI)."""
-    return EXTERNAL_NAME_CROSSWALK[name]
-
-
-# ---------------  Ensemble Member -----------------------------
-
-
-class EnsembleMember:
-    """
-    An `EnsembleMember` is responsible for initializing and maintaining an LSTM model,
-    handling input scaling, managing hidden and cell states, and performing
-    inference using the trained model.
-    """
-
-    def __init__(self, cfg: dict[str, typing.Any], output_scaling_factor_cms: float):
-        self.cfg = cfg
-        # NOTE: aaraney: not sure if this *should* go here. leaving it for now.
-        self.output_scaling_factor_cms = output_scaling_factor_cms
-
-        # load training feature scales
-        scaler_file = cfg["run_dir"] / "train_data/train_data_scaler.yml"
-        with scaler_file.open("r") as fp:
-            train_data_scaler = yaml.load(fp, Loader=SafeLoader)
-        self.scalars = load_training_scalars(cfg, train_data_scaler)
-
-        # initialize torch lstm object
-        self.lstm = initialize_lstm(cfg)
-
-        # TODO: aaraney: how to handle input mapping conceptually?
-        # NOTE: this is the expected order of variables in the model input
-        # tensor, which is required to match the training order when used
-        self.input_names = cfg["dynamic_inputs"] + cfg["static_attributes"]
-
-        # WARNING: This implementation of the LSTM can only handle a batch size of 1
-        # No need to included different batch sizes
-        batch_size = 1
-        hidden_layer_size = cfg["hidden_size"]
-        # if init_config['initial_state'] == 'zero':
-        # NOTE: aaraney: assume initial state is always zero (ask jframe about this. no other option now)
-        self.h_t = torch.zeros(1, batch_size, hidden_layer_size).float()
-        self.c_t = torch.zeros(1, batch_size, hidden_layer_size).float()
-
-    def update(self, state: Valuer) -> typing.Iterable[Var]:
-        """
-        Run a single model timestep and return the model inference values.
-
-        `state` contains the input variable names, units, and values for the
-        current iteration.
-        """
-        with torch.no_grad():
-            inputs = gather_inputs(state, self.input_names)
-
-            scaled = scale_inputs(
-                inputs, self.scalars.input_mean, self.scalars.input_std
-            )
-            input_tensor = torch.tensor(scaled)
-            lstm_output, self.h_t, self.c_t = self.lstm.forward(
-                input_tensor, self.h_t, self.c_t
-            )
-            # TODO: aaraney, there is gap here between mapping 'internal'
-            # output names to 'external' output names. Right now this is
-            # hard-coded and handled in `scale_outputs`. Introduce semantics
-            # for more generally handling outputs.
-            yield from scale_outputs(
-                self.cfg,
-                lstm_output,
-                self.scalars.output_mean,
-                self.scalars.output_std,
-                self.output_scaling_factor_cms,
-            )
+# ---------------  Trained Model -----------------------------
 
 
 def bmi_array(arr: list[float]) -> npt.NDArray:
@@ -214,6 +138,145 @@ class TrainingScalars:
     input_std: npt.NDArray
     output_mean: npt.NDArray
     output_std: npt.NDArray
+
+
+@dataclass(frozen=True)
+class TrainedModel:
+    """
+    A trained neuralhydrology model as loaded for inference: its training
+    config, feature scalars, frozen weights, and the order of its inputs.
+
+    Instances are shared. `load_trained_model` returns the same object for
+    every call naming the same config file, so a process running many
+    catchments holds one copy of each model's weights. Sharing is safe because
+    the module holds parameters only (each `EnsembleMember` owns its hidden
+    and cell state), inference runs under `torch.no_grad()`, and the
+    parameters are frozen after loading. Treat `cfg` as read-only.
+    """
+
+    cfg: dict[str, typing.Any]
+    scalars: TrainingScalars
+    lstm: nextgen_cuda_lstm.Nextgen_CudaLSTM
+    input_names: tuple[str, ...]
+    """order of the model input tensor: dynamic inputs then static attributes"""
+    hidden_size: int
+    """element count of each of the hidden and cell state tensors"""
+
+
+@functools.lru_cache(maxsize=None)
+def load_trained_model(config_file: Path) -> TrainedModel:
+    """
+    Load a `TrainedModel` from its training config, once per distinct path.
+
+    Every dynamic input the model was trained on must have a BMI name in
+    `DYNAMIC_INPUT_NAME_CROSSWALK`; otherwise `ValueError` is raised.
+    """
+    cfg = yaml.load(config_file.read_text(), Loader=SafeLoader)
+    coerce_config(cfg)
+
+    unmapped = [n for n in cfg["dynamic_inputs"] if n not in DYNAMIC_INPUT_NAME_CROSSWALK]
+    if unmapped:
+        raise ValueError(
+            f"Dynamic inputs {unmapped} in {config_file} have no BMI name.\n"
+            f"Known dynamic inputs: {sorted(DYNAMIC_INPUT_NAME_CROSSWALK)}\n"
+        )
+
+    scaler_file = cfg["run_dir"] / "train_data/train_data_scaler.yml"
+    with scaler_file.open("r") as fp:
+        train_data_scaler = yaml.load(fp, Loader=SafeLoader)
+
+    return TrainedModel(
+        cfg=cfg,
+        scalars=load_training_scalars(cfg, train_data_scaler),
+        lstm=initialize_lstm(cfg),
+        input_names=tuple(cfg["dynamic_inputs"]) + tuple(cfg["static_attributes"]),
+        hidden_size=int(cfg["hidden_size"]),
+    )
+
+
+# ---------------  Ensemble Member -----------------------------
+
+
+class EnsembleMember:
+    """
+    One catchment's instance of a `TrainedModel`: the hidden and cell state
+    that evolve with each timestep, and the output scaling for the catchment
+    area. The model itself is shared with every member built from the same
+    training config.
+    """
+
+    def __init__(self, model: TrainedModel, output_scaling_factor_cms: float):
+        self.model = model
+        self.output_scaling_factor_cms = output_scaling_factor_cms
+        # WARNING: This implementation of the LSTM can only handle a batch size of 1
+        # NOTE: aaraney: assume initial state is always zero (ask jframe about this. no other option now)
+        self.h_t = torch.zeros(1, 1, model.hidden_size).float()
+        self.c_t = torch.zeros(1, 1, model.hidden_size).float()
+
+    def update(self, state: Valuer) -> typing.Iterable[Var]:
+        """
+        Run a single model timestep and return the model inference values.
+
+        `state` contains the input variable names, units, and values for the
+        current iteration.
+        """
+        model = self.model
+        with torch.no_grad():
+            inputs = gather_inputs(state, model.input_names)
+            scaled = scale_inputs(
+                inputs, model.scalars.input_mean, model.scalars.input_std
+            )
+            input_tensor = torch.tensor(scaled)
+            lstm_output, self.h_t, self.c_t = model.lstm.forward(
+                input_tensor, self.h_t, self.c_t
+            )
+            # TODO: aaraney, there is gap here between mapping 'internal'
+            # output names to 'external' output names. Right now this is
+            # hard-coded and handled in `scale_outputs`. Introduce semantics
+            # for more generally handling outputs.
+            yield from scale_outputs(
+                model.cfg,
+                lstm_output,
+                model.scalars.output_mean,
+                model.scalars.output_std,
+                self.output_scaling_factor_cms,
+            )
+
+    def state_arrays(
+        self,
+    ) -> tuple[npt.NDArray[np.float32], npt.NDArray[np.float32]]:
+        """
+        Return the hidden and cell state as a pair of flat float32 numpy copies.
+
+        The tensors are shaped (1, batch size 1, hidden size); each copy is
+        flattened to `hidden_size` elements and does not alias the tensor.
+        """
+        return (
+            np.array(self.h_t.detach().cpu().numpy(), dtype="float32").ravel(),
+            np.array(self.c_t.detach().cpu().numpy(), dtype="float32").ravel(),
+        )
+
+    def set_state_arrays(
+        self, hidden: npt.ArrayLike, cell: npt.ArrayLike
+    ) -> None:
+        """
+        Replace the hidden and cell state from a pair of flat arrays.
+
+        Each array must hold exactly `hidden_size` elements; they are converted
+        to float32 tensors of the member's state shape and assigned. A wrong
+        element count raises `ValueError` before either tensor is touched.
+        """
+        hidden_arr = np.asarray(hidden, dtype="float32").ravel()
+        cell_arr = np.asarray(cell, dtype="float32").ravel()
+        for label, arr in (("hidden", hidden_arr), ("cell", cell_arr)):
+            if arr.size != self.model.hidden_size:
+                raise ValueError(
+                    f"{label} state has {arr.size} elements but this member "
+                    f"has hidden size {self.model.hidden_size}"
+                )
+        shape = tuple(self.h_t.shape)
+        self.h_t = torch.tensor(hidden_arr, dtype=torch.float32).reshape(shape)
+        self.c_t = torch.tensor(cell_arr, dtype=torch.float32).reshape(shape)
 
 
 def load_training_scalars(
@@ -250,9 +313,8 @@ def load_training_scalars(
 
 
 def initialize_lstm(cfg: dict[str, typing.Any]) -> nextgen_cuda_lstm.Nextgen_CudaLSTM:
-    # Collect the LSTM model architecture details from the configuration file
+    """Build the inference-only LSTM for a training config and load its trained weights."""
     input_size = len(cfg["dynamic_inputs"]) + len(cfg["static_attributes"])
-    # TODO: aaraney: verify there is a mapping from internal names to external names
     hidden_layer_size = cfg["hidden_size"]
     output_size = len(cfg["target_variables"])
     lstm = nextgen_cuda_lstm.Nextgen_CudaLSTM(
@@ -280,22 +342,23 @@ def initialize_lstm(cfg: dict[str, typing.Any]) -> nextgen_cuda_lstm.Nextgen_Cud
 
     # Load in the trained weights.
     lstm.load_state_dict(trained_state_dict)
+    lstm.eval()
+    lstm.requires_grad_(False)
     return lstm
 
 
 def gather_inputs(
-    state: Valuer, internal_input_names: typing.Iterable[str]
+    state: Valuer, train_input_names: typing.Iterable[str]
 ) -> npt.NDArray:
     logger.debug("Collecting LSTM inputs ...")
 
     input_list = []
-    for lstm_name in internal_input_names:
-        bmi_name = crosswalk_to_external(lstm_name)
+    for name in train_input_names:
+        bmi_name = crosswalk_to_external(name)
         value = state.value(bmi_name)
         assert value.size == 1, "`value` should a single scalar in a 1d array"
         input_list.append(value[0])
-        logger.debug("  lstm_name=%s", lstm_name)
-        logger.debug("  bmi_name=%s", bmi_name)
+        logger.debug("  var_name=%s", bmi_name)
         logger.debug("  type(value)=%s", type(value))
         logger.debug("  value=%s", value)
 
@@ -366,6 +429,49 @@ def scale_outputs(
     )
 
 
+# ---------------  Model Fingerprint  -----------------------------
+
+FINGERPRINT_PREFIX: typing.Final[str] = "lstm-bmi"
+"""Leading token of every fingerprint, so the text is recognizable in a hex dump."""
+
+
+def member_fingerprint(index: int, member: EnsembleMember) -> str:
+    """
+    Return the deterministic textual identity of a single ensemble member.
+
+    The text records, in order, the member's hidden size, its ordered input
+    names (dynamic inputs followed by static attributes, exactly as fed to the
+    model), the name of the trained-model run directory, and the epoch number
+    of the loaded weights. It is meant to be readable in a hex dump and is
+    compared as bytes, never parsed.
+    """
+    cfg = member.model.cfg
+    run_dir = Path(cfg["run_dir"]).name
+    return (
+        f"{index}:hidden={member.model.hidden_size},"
+        f"inputs={'|'.join(member.model.input_names)},"
+        f"run={run_dir},"
+        f"epoch={int(cfg['epochs'])}"
+    )
+
+
+def compute_fingerprint(members: typing.Sequence[EnsembleMember]) -> bytes:
+    """
+    Derive the UTF-8 fingerprint identifying an ensemble of members.
+
+    The fingerprint is ``lstm-bmi;members=<count>`` followed by one
+    :func:`member_fingerprint` section per member, in ensemble order, all
+    joined by ``;``. Two modules initialized from equivalent configurations
+    produce identical bytes; a change in member count, order, hidden size,
+    input names, trained-model run directory, or epoch changes the bytes.
+    """
+    sections = [FINGERPRINT_PREFIX, f"members={len(members)}"]
+    sections.extend(
+        member_fingerprint(index, member) for index, member in enumerate(members)
+    )
+    return ";".join(sections).encode("utf-8")
+
+
 # ---------------  LSTM BMI Wrapper  -----------------------------
 
 
@@ -378,11 +484,35 @@ def build_state(vars: typing.Iterable[tuple[str, str]]) -> State:
     return State(vars=g)
 
 
-def load_static_attributes(cfg: dict[str, typing.Any], state: State):
-    for external_name in state.names():
-        internal_name = crosswalk_to_interal(external_name)
-        value = cfg[internal_name]
-        state.set_value(external_name, bmi_array([value]))
+def resolve_static_attributes(
+    cfg_bmi: dict[str, typing.Any], models: typing.Iterable[TrainedModel]
+) -> dict[str, typing.Any]:
+    """
+    Return ``{name: value}`` for every static attribute the models require.
+
+    The names come from the trained model configs, in model order without
+    duplicates. The values come from the config's ``static_attributes``
+    mapping when it has one and from the top-level keys otherwise, so the
+    nested and the flat (generated, often JSON) config shapes are read the
+    same way. A missing value raises ``ValueError`` naming every absent
+    attribute.
+    """
+    source = cfg_bmi.get("static_attributes", cfg_bmi)
+    if not isinstance(source, dict):
+        raise ValueError(
+            "'static_attributes' must be a mapping of attribute name to value, "
+            f"got {type(source).__name__}"
+        )
+
+    names = list(dict.fromkeys(n for m in models for n in m.cfg["static_attributes"]))
+    missing = [n for n in names if n not in source]
+    if missing:
+        raise ValueError(
+            f"Missing static attributes: {sorted(missing)}.\n"
+            f"Expected by the lstm: {names}\n"
+            "Provide them under a 'static_attributes' mapping or as top-level keys.\n"
+        )
+    return {n: source[n] for n in names}
 
 
 class bmi_LSTM(BmiBase):
@@ -392,8 +522,17 @@ class bmi_LSTM(BmiBase):
     def __init__(self) -> None:
         # _bmi_ variable state; this is separate from lstm ensemble member state.
         self._dynamic_inputs = build_state(_dynamic_input_vars)
-        self._static_inputs = build_state(_static_input_vars)
         self._outputs = build_state(_output_vars)
+        # the four reserved ngen serialization protocol variables (see
+        # `serialization_protocol`), wired to pack and unpack this module's
+        # `snapshot()`. They resolve by name only and are deliberately kept out
+        # of the input / output name lists.
+        self._serialization = SerializationProtocol(
+            capture=lambda: serialization_codec.pack(self.snapshot()),
+            restore=lambda payload: self.apply_snapshot(
+                serialization_codec.unpack(payload)
+            ),
+        )
 
         # current model timestep.
         # e.g. current time = self._timestep * self._timestep_size_s
@@ -404,6 +543,8 @@ class bmi_LSTM(BmiBase):
         # here, however the names are bound and initialized in `initialize`.
         self.cfg_bmi: dict[str, typing.Any]
         self.ensemble_members: list[EnsembleMember]
+        self._fingerprint: bytes
+        """model identity derived from the ensemble members; see `compute_fingerprint`"""
 
     def initialize(self, config_file: str) -> None:
         # read and setup main configuration file
@@ -416,22 +557,34 @@ class bmi_LSTM(BmiBase):
         # self.cfg_bmi["verbose"]
         configure_logging()
 
+        # Before any inference: ranks pinned to one core must not run a node-sized thread pool.
+        configure_torch_threads(self.cfg_bmi.get(TORCH_THREADS_KEY))
+
         # ----------- The output is area normalized, this is needed to un-normalize it
         #                         mm->m                             km2 -> m2          hour->s
         output_factor_cms = (
             (1 / 1000) * (self.cfg_bmi["area_sqkm"] * 1000 * 1000) * (1 / 3600)
         )
 
-        # initialize ensemble members
-        self.ensemble_members = []
-        for member_cfg_file in self.cfg_bmi["train_cfg_file"]:
-            cfg = yaml.load(member_cfg_file.read_text(), Loader=SafeLoader)
-            coerce_config(cfg)
-            member = EnsembleMember(cfg, output_factor_cms)
-            self.ensemble_members.append(member)
+        # `resolve()` so every spelling of one config path shares a single loaded model.
+        self.ensemble_members = [
+            EnsembleMember(load_trained_model(cfg_file.resolve()), output_factor_cms)
+            for cfg_file in self.cfg_bmi["train_cfg_file"]
+        ]
 
-        # load static variables from config into state
-        load_static_attributes(self.cfg_bmi, self._static_inputs)
+        static_attributes = resolve_static_attributes(
+            self.cfg_bmi, (m.model for m in self.ensemble_members)
+        )
+        self._static_inputs = State(
+            vars=(
+                Var(name=name, unit="1", value=bmi_array([value]))
+                for name, value in static_attributes.items()
+            )
+        )
+
+        # identity of the fully constructed ensemble, used to reject state
+        # payloads produced by a differently configured module.
+        self._fingerprint = compute_fingerprint(self.ensemble_members)
 
     def update(self) -> None:
         """update a single timestep."""
@@ -476,7 +629,9 @@ class bmi_LSTM(BmiBase):
         for _ in range(int(n_steps)):
             self.update()
 
-    def finalize(self) -> None: ...
+    def finalize(self) -> None:
+        # release any captured serialization payload; nothing else is held.
+        self._serialization.release()
 
     def get_component_name(self) -> str:
         return "LSTM"
@@ -503,7 +658,9 @@ class bmi_LSTM(BmiBase):
         return self.get_value_ptr(name).dtype.name
 
     def get_var_units(self, name: str) -> str:
-        return first_containing(name, self._outputs, self._dynamic_inputs).unit(name)
+        return first_containing(
+            name, self._outputs, self._dynamic_inputs, self._serialization
+        ).unit(name)
 
     def get_var_itemsize(self, name: str) -> int:
         return self.get_value_ptr(name).itemsize
@@ -538,7 +695,9 @@ class bmi_LSTM(BmiBase):
 
     def get_value_ptr(self, name: str) -> np.ndarray:
         """Returns a _reference_ to a variable's np.NDArray."""
-        return first_containing(name, self._outputs, self._dynamic_inputs).value(name)
+        return first_containing(
+            name, self._outputs, self._dynamic_inputs, self._serialization
+        ).value(name)
 
     def get_value_at_indices(
         self, name: str, dest: np.ndarray, inds: np.ndarray
@@ -548,6 +707,10 @@ class bmi_LSTM(BmiBase):
         ).value_at_indices(name, dest, inds)
 
     def set_value(self, name: str, src: np.ndarray) -> None:
+        # the reserved protocol names are triggers, an announcement, or a
+        # payload delivery rather than values; the protocol object dispatches.
+        if name in self._serialization:
+            return self._serialization.set_value(name, src)
         return first_containing(name, self._outputs, self._dynamic_inputs).set_value(
             name, src
         )
@@ -577,6 +740,97 @@ class bmi_LSTM(BmiBase):
         if grid == 0:
             return "scalar"
         raise RuntimeError(f"unsupported grid type: {grid!s}. only support 0")
+
+    # Computed-state transfer for the ngen BMI Serialization Protocol. The
+    # protocol's reserved variables, buffer, and dispatch live in
+    # `serialization_protocol`; the payload format lives in
+    # `serialization_codec`. This class contributes only the model identity
+    # and the two methods that move state into and out of a `Snapshot`.
+
+    def _require_initialized(self, action: str) -> None:
+        """Raise `RuntimeError` naming `action` unless `initialize()` has run."""
+        if not hasattr(self, "_fingerprint"):
+            raise RuntimeError(f"cannot {action} before initialize() is called")
+
+    @property
+    def fingerprint(self) -> bytes:
+        """
+        Identity of the initialized ensemble; see `compute_fingerprint`.
+
+        Read-only. Raises `RuntimeError` before `initialize()`.
+        """
+        self._require_initialized("read the model fingerprint")
+        return self._fingerprint
+
+    def snapshot(self) -> serialization_codec.Snapshot:
+        """
+        Gather the module's computed state into a codec `Snapshot`.
+
+        The snapshot holds the timestep counter, the fingerprint, each ensemble
+        member's hidden and cell state as flat float32 copies (in ensemble
+        order), and the output values as float64 (in output variable order).
+        Nothing on the module is modified, and the returned arrays do not alias
+        the member tensors. Raises `RuntimeError` before `initialize()`.
+        """
+        self._require_initialized("capture serialization state")
+        members = [member.state_arrays() for member in self.ensemble_members]
+        outputs = np.array(
+            [self._outputs.value(name)[0] for name in self._outputs.names()],
+            dtype=serialization_codec.OUTPUT_DTYPE,
+        )
+        return serialization_codec.Snapshot(
+            timestep=self._timestep,
+            fingerprint=self._fingerprint,
+            members=members,
+            outputs=outputs,
+        )
+
+    def apply_snapshot(self, snapshot: serialization_codec.Snapshot) -> None:
+        """
+        Write a codec `Snapshot` into the member tensors and output values.
+
+        The checks run in order: fingerprint, member count, each member's
+        hidden and cell sizes, output count. Every check is made before the
+        first assignment, so a rejected snapshot mutates nothing. This is the
+        only place the fingerprint is compared. The snapshot's timestep is
+        deliberately not applied: the module's clock after a restore is
+        whatever `initialize()` set, and ngen advances the model relative to
+        its own time (see the README's serialization section).
+        """
+        self._require_initialized("restore serialization state")
+        fingerprint = bytes(snapshot.fingerprint)
+        if fingerprint != self._fingerprint:
+            raise serialization_codec.PayloadError(
+                "fingerprint mismatch: payload carries "
+                f"{fingerprint!r} but this module expects {self._fingerprint!r}"
+            )
+
+        members = self.ensemble_members
+        if len(snapshot.members) != len(members):
+            raise serialization_codec.PayloadError(
+                f"payload carries {len(snapshot.members)} ensemble members but this "
+                f"module has {len(members)}"
+            )
+        for index, (member, (hidden, cell)) in enumerate(zip(members, snapshot.members)):
+            if hidden.size != member.model.hidden_size or cell.size != member.model.hidden_size:
+                raise serialization_codec.PayloadError(
+                    f"payload member {index} carries hidden size {hidden.size} "
+                    f"(cell {cell.size}) but this module's member has "
+                    f"{member.model.hidden_size}"
+                )
+        output_names = list(self._outputs.names())
+        if len(snapshot.outputs) != len(output_names):
+            raise serialization_codec.PayloadError(
+                f"payload carries {len(snapshot.outputs)} output values but this "
+                f"module has {len(output_names)}"
+            )
+        outputs = np.asarray(snapshot.outputs, dtype="float64")
+
+        # all checks passed: apply.
+        for member, (hidden, cell) in zip(members, snapshot.members):
+            member.set_state_arrays(hidden, cell)
+        for name, value in zip(output_names, outputs):
+            self._outputs.set_value(name, value)
 
 
 def coerce_config(cfg: dict[str, typing.Any]):

@@ -33,7 +33,7 @@ How to Download Many Files from AWS S3 Bucket
     Total file size:        4,630,899 B (4.6 MB)
 
 6.  Copied this LSTM folder to:
-        ngen/extern/lstm_py/bmi_config_files/HUC01
+        ngen/extern/lstm_py/configs/HUC01
 
 7.  The files: catchment_data.geojson and nexus_data.geojson can
     be found in:  formulations-dev > HUC01.  They are also needed.

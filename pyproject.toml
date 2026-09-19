@@ -27,11 +27,18 @@ dependencies = [
     "pyyml",
     "torch",
     "typing_extensions; python_version<'3.10'",
+    "netCDF4"
 ]
+
 # TODO: aaraney: circle back to package data
 
 [project.optional-dependencies]
 develop = ["pytest", "netcdf4"]
+test = [
+    "jupyter",
+    "matplotlib",
+    "hydrotools"
+]
 
 [tool.setuptools.dynamic]
 version = { attr = "lstm._version.__version__" }

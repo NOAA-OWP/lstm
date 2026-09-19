@@ -6,7 +6,7 @@ from netCDF4 import Dataset
 from lstm import bmi_lstm
 
 REPO_ROOT = Path(__file__).parent.parent
-bmi_cfg_file = REPO_ROOT / "bmi_config_files/01022500_nh_NLDAS_hourly.yml"
+bmi_cfg_file = REPO_ROOT / "configs/01022500_nh_NLDAS_hourly.yml"
 sample_data_file = REPO_ROOT / "data/usgs-streamflow-nldas_hourly.nc"
 
 # creating an instance of an LSTM model

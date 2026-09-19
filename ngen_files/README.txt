@@ -16,5 +16,5 @@ The "ngen_files/data/lstm" folder contains:
 (2) catchment and nexus data GeoJSON files in "spatial" folder,
     including ones for HUCO1, CAMELS-test, etc.
 (3) LSTM model config files in the "yml_files" folder.
-    Some of these are also in lstm_py/bmi_config_files.
+    Some of these are also in lstm_py/configs.
 (4) forcing data for testing HUC01, CAMELS-test, etc. in data/forcing

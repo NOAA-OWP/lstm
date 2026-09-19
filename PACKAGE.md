@@ -69,7 +69,7 @@ which contains the package folder.
   - Changed "`import bmi_lstm.py`" to: "`import lstm.bmi_lstm.py`"
   - Modified some of the print statements a bit.
 * Created a basic setup.py file in project folder.  (But no longer preferred method.)
-* LSTM uses files from the following 3 folders: `bmi_config_files`, `data`, and
+* LSTM uses files from the following 3 folders: `configs`, `data`, and
 `trained_neuralhydrology_models`.  Note that I did not put these in the lstm
 package folder, but they are needed and could possibly be considered as and
 treated as "package data".

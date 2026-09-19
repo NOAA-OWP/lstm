@@ -1,0 +1,30 @@
+# this is an exmaple config file of ensemble LSTM runs
+train_cfg_file:
+  - ./trained_neuralhydrology_models/nh_AORC_hourly_slope_elev_precip_temp_seq999_seed101_2801_191806/config.yml
+  - ./trained_neuralhydrology_models/nh_AORC_hourly_seq4380_owp_snowsample_seed105_1603_230110/config.yml
+
+
+basin_id: 02299950
+verbose: 0
+time_step: 1 hour
+initial_state: zero
+
+# list of combined static attributes
+static_attributes:
+  #model-A attributes
+  elev_mean: 38.972696414578294
+  slope_mean: 1.4339336156845093
+
+  #model-B attributes
+  area_sqkm: 24.327900063007565
+  centroid_lat: 27.62161649438686
+  ari_ix_mean: 0.8418134240765031
+  lka_pc_sse: 5.258263297477382
+  ele_mt_mean: 43.314369160877696
+  slp_dg_mean: 0.12219219311640533
+  ims_pc_mean: 1.0764782106202508
+  snw_pc_max: 0.0
+  snd_pct: 90.70552057753306
+  cly_pct: 4.290046047805433
+
+area_sqkm: 24.327900063007565

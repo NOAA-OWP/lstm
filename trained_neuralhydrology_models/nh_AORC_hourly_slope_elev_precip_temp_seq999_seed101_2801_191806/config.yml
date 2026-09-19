@@ -37,7 +37,7 @@ output_activation: linear
 output_dropout: 0.4
 package_version: 1.10.0
 predict_last_n: 1
-run_dir: ../trained_neuralhydrology_models/nh_AORC_hourly_slope_elev_precip_temp_seq999_seed101_2801_191806
+run_dir: ./trained_neuralhydrology_models/nh_AORC_hourly_slope_elev_precip_temp_seq999_seed101_2801_191806
 save_weights_every: 1
 seed: 101
 seq_length: 999

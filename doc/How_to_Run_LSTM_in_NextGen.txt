@@ -95,7 +95,7 @@ Note: It appears that the "Pointer" error reported at the end is a NextGen probl
     For example:
         "./data/lstm/yml_files/HUC01/cat-67.yml"
     or
-        "./extern/lstm_py/bmi_config_files/cat-67.yml"
+        "./extern/lstm_py/configs/cat-67.yml"
     It can also contain a regular expression to match many files:
         "./data/lstm/yml_files/HUCO01/{{id}}.yml"      
 
@@ -127,7 +127,7 @@ Note: It appears that the "Pointer" error reported at the end is a NextGen probl
     (This can be done with Cyberduck, as explained in another doc.)
 
 (2) Copy this LSTM folder to:
-        ngen/extern/lstm_py/bmi_config_files/HUC01
+        ngen/extern/lstm_py/configs/HUC01
     or
         ngen/data/lstm/yml_files/HUC01
 
@@ -142,7 +142,7 @@ Note: It appears that the "Pointer" error reported at the end is a NextGen probl
     must have a corresponding entry in these two files.
     (So older versions of these geojson files may not work.)
 
-(4) Each YML file in:  ngen/extern/lstm_py/bmi_config_files/HUC01
+(4) Each YML file in:  ngen/extern/lstm_py/configs/HUC01
     has the line:
     train_cfg_file: ./trained_neuralhydrology_models/hourly_slope_mean_precip_temp/config.yml
     Since we'll be running NextGen from the ngen folder, first make sure that the
@@ -163,7 +163,7 @@ Note: It appears that the "Pointer" error reported at the end is a NextGen probl
           "params": {
               "python_type": "lstm.bmi_LSTM",
               "model_type_name": "bmi_LSTM",
-              "init_config": "./extern/lstm_py/bmi_config_files/HUC01/{{id}}.yml",
+              "init_config": "./extern/lstm_py/configs/HUC01/{{id}}.yml",
               "main_output_variable": "land_surface_water__runoff_volume_flux",
               "uses_forcing_file": false,
               "variables_names_map" : {
@@ -190,6 +190,98 @@ Note: It appears that the "Pointer" error reported at the end is a NextGen probl
 
     (base) % cd <ngen-repo-folder>
     (base) % ./cmake_build/ngen ./data/lstm/spatial/catchment_data_HUC01.geojson "" ./data/lstm/spatial/nexus_data_HUC01.geojson "" ./data/lstm/rc_files/realization_config_lstm_HUC01.json
+
+---------------------------------------------------------
+ Checkpoint and restore (ngen BMI Serialization Protocol)
+---------------------------------------------------------
+The LSTM module implements the ngen BMI Serialization Protocol (see
+ngen/doc/BMI_SERIALIZATION_PROTOCOL.md and ngen/doc/NGEN_SERIALIZATION.md,
+protocol v0.2). Nothing needs to change in the LSTM's own YML config file;
+checkpointing is turned on from the realization config alone.
+
+(1) Add a "serialization" block at the TOP LEVEL of the realization JSON
+    (a sibling of "global", "time", and "catchments"). ngen injects it into
+    every formulation it builds, so one copy covers all catchments.
+    "save.frequency" is the checkpoint interval in time steps (1 = every
+    step; a negative value = only the final step). "restore.step" selects
+    the record to load at startup: the sentinel "latest" or a numeric step
+    string such as "12".
+
+{
+    "global": {
+      "formulations":
+      [
+        {
+          "name": "bmi_python",
+          "params": {
+              "python_type": "lstm.bmi_lstm.bmi_LSTM",
+              "model_type_name": "bmi_LSTM",
+              "init_config": "./data/lstm/yml_files/HUC01/{{id}}.yml",
+              "main_output_variable": "land_surface_water__runoff_volume_flux",
+              "uses_forcing_file": false,
+              "variables_names_map" : {
+                  "streamflow_cms": "land_surface_water__runoff_volume_flux"}
+          }
+        }
+      ],
+        "forcing": {
+            "path": "./data/forcing/HUC01-test/cat-67.csv"
+        }
+    },
+    "time": {
+        "start_time": "2015-12-01 00:00:00",
+        "end_time": "2015-12-30 23:00:00",
+        "output_interval": 3600
+    },
+    "serialization": {
+        "path": "./checkpoints/lstm.ckpt",
+        "save":    { "check": true, "frequency": 24, "fatal": true },
+        "restore": { "check": true, "step": "latest", "fatal": true }
+    }
+}
+
+    Use only the "save" sub-block for a run that writes checkpoints from a
+    cold start, and only the "restore" sub-block for a run that resumes but
+    should not write new ones. Both may be present; they share the top-level
+    "path" unless a sub-block sets its own "path".
+
+(2) Where the checkpoint file is written:
+    - "path" is opened exactly as given, so a relative path is relative to
+      the directory ngen is run from (the same folder that receives the
+      cat-*.csv output files).
+    - ngen appends records to the file; it does NOT create the parent
+      directory. Create it first, e.g.:  % mkdir -p ./checkpoints
+    - One file holds the records of every catchment and every checkpointed
+      step. Each record is tagged with the catchment id and model_type_name
+      (e.g. "cat-67:bmi_LSTM"), so a restore only ever reads its own
+      catchment's record. The path may use the tokens {{rank}}, {{pid}},
+      {{host}}, and {{date}} to split files per MPI rank, process, or day.
+    - The LSTM's bytes inside each record are the payload documented in the
+      "NextGen Serialization" section of the README (magic "LSTMBMI",
+      format version, timestep, per-member hidden and cell states, outputs).
+
+(3) What restore does and does not change:
+    - The hidden and cell state of every ensemble member and the two output
+      values are restored, so a resumed run reproduces the uninterrupted
+      run's runoff bit for bit.
+    - The module's clock is NOT changed; it stays at the time set by
+      initialize(), which is the realization's "start_time". Set
+      "start_time" of the resumed run to the time at which the checkpoint
+      was taken, exactly as you would for any other restarted model.
+    - A checkpoint written with a different trained model, a different set
+      of static attributes or forcings, or a different number of ensemble
+      members is rejected before any state is touched. With
+      "restore.fatal": true (the default) ngen stops at startup and prints
+      the LSTM's error message (it will mention "fingerprint mismatch").
+      With "restore.fatal": false ngen warns and runs the module from its
+      cold-start state instead.
+
+(4) Sanity check without ngen: the same four reserved BMI variables
+    (ngen::serialization_create, ngen::serialization_free,
+    ngen::serialization_size, ngen::serialization_state) can be driven from
+    Python through set_value / get_value; see tests/test_end_to_end_serialization.py
+    in the lstm repository for a complete save-and-restore example.
+
 
 --------------------------------
  Note about model output files
