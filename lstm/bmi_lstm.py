@@ -64,7 +64,7 @@ try:
 except ImportError:
     from yaml import SafeLoader
 
-from . import nextgen_cuda_lstm
+from . import nextgen_cuda_lstm, serialization
 from .base import BmiBase
 from .logger import configure_logging, logger
 from .model_state import State, StateFacade, Var
@@ -385,6 +385,39 @@ def load_static_attributes(cfg: dict[str, typing.Any], state: State):
         state.set_value(external_name, bmi_array([value]))
 
 
+def build_serialization_state() -> State:
+    """
+    Create the `State` holding the ngen BMI Serialization Protocol's reserved
+    variables. These are intentionally _not_ exposed by
+    `get_{input,output}_var_names`; they are discovered by name.
+    """
+    return State(
+        vars=(
+            Var(
+                name=serialization.SERIALIZATION_CREATE,
+                unit=serialization.UNIT_TRIGGER,
+                value=np.zeros(1, dtype="int32"),
+            ),
+            Var(
+                name=serialization.SERIALIZATION_FREE,
+                unit=serialization.UNIT_TRIGGER,
+                value=np.zeros(1, dtype="int32"),
+            ),
+            # NOTE: ngen reads the size into a C `int`; this must stay 4 bytes.
+            Var(
+                name=serialization.SERIALIZATION_SIZE,
+                unit=serialization.UNIT_BYTES,
+                value=np.zeros(1, dtype="int32"),
+            ),
+            Var(
+                name=serialization.SERIALIZATION_STATE,
+                unit=serialization.UNIT_OPAQUE,
+                value=np.zeros(0, dtype="uint8"),
+            ),
+        )
+    )
+
+
 class bmi_LSTM(BmiBase):
     _timestep_size_s: typing.Final[int] = 3600
     """model timestep size in seconds"""
@@ -394,6 +427,8 @@ class bmi_LSTM(BmiBase):
         self._dynamic_inputs = build_state(_dynamic_input_vars)
         self._static_inputs = build_state(_static_input_vars)
         self._outputs = build_state(_output_vars)
+        # ngen BMI Serialization Protocol reserved variables
+        self._serialization = build_serialization_state()
 
         # current model timestep.
         # e.g. current time = self._timestep * self._timestep_size_s
@@ -458,6 +493,35 @@ class bmi_LSTM(BmiBase):
         # increment model timestep
         self._timestep += 1
 
+    # ---------- ngen BMI Serialization Protocol ----------
+    def _serialize(self) -> bytes:
+        return serialization.encode(
+            self._timestep,
+            (self._dynamic_inputs, self._outputs),
+            self.ensemble_members,
+        )
+
+    def _create_serialization(self) -> None:
+        """Snapshot the model state into the serialization buffer."""
+        buffer = np.frombuffer(self._serialize(), dtype="uint8").copy()
+        self._serialization.replace_value(serialization.SERIALIZATION_STATE, buffer)
+        self._serialization.set_value(serialization.SERIALIZATION_SIZE, buffer.nbytes)
+
+    def _free_serialization(self) -> None:
+        """Release the serialization buffer. Always safe to call."""
+        self._serialization.replace_value(
+            serialization.SERIALIZATION_STATE, np.zeros(0, dtype="uint8")
+        )
+        self._serialization.set_value(serialization.SERIALIZATION_SIZE, 0)
+
+    def _deserialize(self, src: np.ndarray) -> None:
+        """Restore the model state from bytes produced by `_create_serialization`."""
+        snapshot = serialization.decode(np.asarray(src, dtype="uint8").tobytes())
+        serialization.apply(
+            snapshot, (self._dynamic_inputs, self._outputs), self.ensemble_members
+        )
+        self._timestep = snapshot.timestep
+
     def update_until(self, time: float) -> None:
         if time <= self.get_current_time():
             current_time = self.get_current_time()
@@ -503,12 +567,20 @@ class bmi_LSTM(BmiBase):
         return self.get_value_ptr(name).dtype.name
 
     def get_var_units(self, name: str) -> str:
-        return first_containing(name, self._outputs, self._dynamic_inputs).unit(name)
+        return first_containing(
+            name, self._outputs, self._dynamic_inputs, self._serialization
+        ).unit(name)
 
     def get_var_itemsize(self, name: str) -> int:
         return self.get_value_ptr(name).itemsize
 
     def get_var_nbytes(self, name: str) -> int:
+        if name == serialization.SERIALIZATION_STATE:
+            # must be valid before any `create` (i.e. at restore time) so
+            # adapters can size the `set_value` buffer. the payload size is
+            # fixed for a given model configuration, so compute it on demand.
+            nbytes = self.get_value_ptr(name).nbytes
+            return nbytes if nbytes > 0 else len(self._serialize())
         return self.get_var_itemsize(name) * len(self.get_value_ptr(name))
 
     def get_var_location(self, name: str) -> str:
@@ -538,7 +610,9 @@ class bmi_LSTM(BmiBase):
 
     def get_value_ptr(self, name: str) -> np.ndarray:
         """Returns a _reference_ to a variable's np.NDArray."""
-        return first_containing(name, self._outputs, self._dynamic_inputs).value(name)
+        return first_containing(
+            name, self._outputs, self._dynamic_inputs, self._serialization
+        ).value(name)
 
     def get_value_at_indices(
         self, name: str, dest: np.ndarray, inds: np.ndarray
@@ -548,6 +622,15 @@ class bmi_LSTM(BmiBase):
         ).value_at_indices(name, dest, inds)
 
     def set_value(self, name: str, src: np.ndarray) -> None:
+        # ngen BMI Serialization Protocol; trigger values are ignored.
+        if name == serialization.SERIALIZATION_SIZE:
+            return
+        if name == serialization.SERIALIZATION_CREATE:
+            return self._create_serialization()
+        if name == serialization.SERIALIZATION_FREE:
+            return self._free_serialization()
+        if name == serialization.SERIALIZATION_STATE:
+            return self._deserialize(src)
         return first_containing(name, self._outputs, self._dynamic_inputs).set_value(
             name, src
         )

@@ -78,6 +78,9 @@ class State:
         for i in range(inds.shape[0]):
             arr[inds[i]] = src[i]
 
+    def replace_value(self, name: str, value: npt.NDArray):
+        self._name_mapping[name].value = value
+
     def names(self) -> typing.Iterable[str]:
         yield from self._name_mapping
 
